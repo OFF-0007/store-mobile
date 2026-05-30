@@ -1,0 +1,2 @@
+﻿app/(auth)/_layout.tsx(12,22): error TS2322: Type '"/(tabs)"' is not assignable to type 'RelativePathString | ExternalPathString | { pathname: RelativePathString; params?: UnknownInputParams | undefined; } | { ...; }'.
+app/(tabs)/_layout.tsx(23,22): error TS2322: Type '"/(auth)/login"' is not assignable to type 'RelativePathString | ExternalPathString | { pathname: RelativePathString; params?: UnknownInputParams | undefined; } | { ...; }'.

@@ -4,27 +4,10 @@
 import { create } from "zustand";
 import * as SecureStore from "expo-secure-store";
 import apiClient, { TOKEN_KEY } from "@/lib/api/client";
-import type { User } from "@/types/models";
 
 const USER_SESSION_KEY = "user_session";
 
-export interface MobileUser extends User {
-  permissions: string[];
-}
-
-interface AuthState {
-  user: MobileUser | null;
-  token: string | null;
-  isLoading: boolean;
-  isAuthenticated: boolean;
-
-  // Actions
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-  restoreSession: () => Promise<void>;
-}
-
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create((set) => ({
   user: null,
   token: null,
   isLoading: true, // start in loading state to restore session cleanly
@@ -57,7 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: async () => {
     set({ isLoading: true });
     try {
-      await apiClient.post("/logout").catch(() => {});
+      await apiClient.post("/logout").catch(() => { });
     } finally {
       await SecureStore.deleteItemAsync(TOKEN_KEY);
       await SecureStore.deleteItemAsync(USER_SESSION_KEY);
@@ -70,6 +53,26 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  // ── Switch Store ───────────────────────────────────────────────────────────
+  switchStore: async (storeId) => {
+    try {
+      set({ isLoading: true });
+      const userStr = await SecureStore.getItemAsync(USER_SESSION_KEY);
+      if (userStr) {
+        let user = JSON.parse(userStr);
+        user.store_id = storeId;
+        await SecureStore.setItemAsync(USER_SESSION_KEY, JSON.stringify(user));
+        
+        apiClient.defaults.headers.common["X-Store-Id"] = storeId;
+        
+        set({ user, isLoading: false });
+      }
+    } catch (e) {
+      set({ isLoading: false });
+      throw e;
+    }
+  },
+
   // ── Restore session ────────────────────────────────────────────────────────
   restoreSession: async () => {
     try {
@@ -77,9 +80,19 @@ export const useAuthStore = create<AuthState>((set) => ({
       const userStr = await SecureStore.getItemAsync(USER_SESSION_KEY);
 
       if (token && userStr) {
+        let user = JSON.parse(userStr);
+
+        if (token) {
+          apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+        }
+
+        if (user?.store_id) {
+          apiClient.defaults.headers.common["X-Store-Id"] = user.store_id;
+        }
+
         set({
           token,
-          user: JSON.parse(userStr),
+          user,
           isAuthenticated: true,
           isLoading: false,
         });
@@ -101,3 +114,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 }));
+
+// End of auth store
+

@@ -7,6 +7,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import {
   Alert,
+  Dimensions,
   Modal,
   ScrollView,
   Text,
@@ -17,14 +18,15 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
 
 // Safely require expo-camera to prevent crash when native modules aren't compiled yet
 let CameraView = null;
-let useCameraPermissions = () => [null, () => {}];
+let useCameraPermissions = () => [null, () => { }];
 
 try {
   const ExpoCamera = require("expo-camera");
@@ -46,12 +48,14 @@ const fmtInt = (val) =>
   })}`;
 
 const PAYMENT_METHODS = [
-  { key: "Cash", label: "Cash", icon: "💵" },
-  { key: "Card", label: "Card", icon: "💳" },
-  { key: "UPI", label: "UPI", icon: "📱" },
+  { key: "Cash", label: "Cash", icon: "💵", activeBg: "#10b981", shadowColor: "#10b981" },
+  { key: "Card", label: "Card", icon: "💳", activeBg: "#3b82f6", shadowColor: "#3b82f6" },
+  { key: "UPI", label: "UPI", icon: "📱", activeBg: "#8b5cf6", shadowColor: "#8b5cf6" },
 ];
 
 export default function POSScreen() {
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     products,
     customers,
@@ -76,6 +80,8 @@ export default function POSScreen() {
   const [customerPhone, setCustomerPhone] = useState("");
   const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [payableAmount, setPayableAmount] = useState("");
+  const [isPayableAmountEdited, setIsPayableAmountEdited] = useState(false);
   const [paidAmount, setPaidAmount] = useState("");
   const [isPaidAmountEdited, setIsPaidAmountEdited] = useState(false);
   const [isOutsideState, setIsOutsideState] = useState(false);
@@ -85,7 +91,7 @@ export default function POSScreen() {
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [activeUnitItem, setActiveUnitItem] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
-  
+
   // Checkout Success Receipt Modal
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [completedSale, setCompletedSale] = useState(null);
@@ -94,6 +100,11 @@ export default function POSScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [lastScannedMessage, setLastScannedMessage] = useState("");
   const scannedLock = useRef(false);
+
+  const [showScanQuantityModal, setShowScanQuantityModal] = useState(false);
+  const [scannedProductForQty, setScannedProductForQty] = useState(null);
+  const [scanQuantity, setScanQuantity] = useState("1");
+  const [isTorchOn, setIsTorchOn] = useState(false);
 
   // ── Customer Suggestions ───────────────────────────────────────────────────
   const filteredCustomers = useMemo(() => {
@@ -140,19 +151,23 @@ export default function POSScreen() {
   }, [products]);
 
   // ── Cart Operations ────────────────────────────────────────────────────────
-  const addToCart = useCallback((product) => {
+  const addToCart = useCallback((product, qtyToAdd = 1) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.product_id === product.id);
       if (existing) {
-        if (existing.quantity >= product.stock) {
+        if (existing.quantity + qtyToAdd > product.stock) {
           Alert.alert("Stock Limit Reached", `Only ${product.stock} units available.`);
           return prev;
         }
         return prev.map((item) =>
           item.product_id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: item.quantity + qtyToAdd }
             : item
         );
+      }
+      if (qtyToAdd > product.stock) {
+        Alert.alert("Stock Limit Reached", `Only ${product.stock} units available.`);
+        return prev;
       }
       return [
         ...prev,
@@ -160,7 +175,7 @@ export default function POSScreen() {
           product_id: product.id,
           name: product.name,
           price: product.price,
-          quantity: 1,
+          quantity: qtyToAdd,
           gst_rate: product.gst || 0,
           discount: 0,
           discount_type: "fixed",
@@ -216,7 +231,7 @@ export default function POSScreen() {
       if (item.discount_type === "percent") {
         itemDiscountAmount = (itemBaseTotal * Number(item.discount || 0)) / 100;
       }
-      
+
       const itemTaxableValue = Math.max(0, itemBaseTotal - itemDiscountAmount);
       const itemTax = (itemTaxableValue * Number(item.gst_rate || 0)) / 100;
       const itemSubtotal = itemTaxableValue + itemTax;
@@ -248,29 +263,40 @@ export default function POSScreen() {
     };
   }, [cart]);
 
-  // Sync paidAmount with grandTotal if user hasn't edited it manually
+  // Sync payableAmount with grandTotal if user hasn't edited it manually
+  useEffect(() => {
+    if (!isPayableAmountEdited) {
+      setPayableAmount(grandTotal.toString());
+    }
+  }, [grandTotal, isPayableAmountEdited]);
+
+  // Sync paidAmount with payableAmount if user hasn't edited it manually
   useEffect(() => {
     if (!isPaidAmountEdited) {
-      setPaidAmount(grandTotal.toString());
+      setPaidAmount(payableAmount.toString());
     }
-  }, [grandTotal, isPaidAmountEdited]);
+  }, [payableAmount, isPaidAmountEdited]);
+
+  const effectivePayableAmount = useMemo(() => {
+    return Number(payableAmount || 0);
+  }, [payableAmount]);
 
   const changeDue = useMemo(() => {
     const paid = Number(paidAmount || 0);
-    return Math.max(0, paid - grandTotal);
-  }, [paidAmount, grandTotal]);
+    return Math.max(0, paid - effectivePayableAmount);
+  }, [paidAmount, effectivePayableAmount]);
 
   const balanceOutstanding = useMemo(() => {
     const paid = Number(paidAmount || 0);
-    return Math.max(0, grandTotal - paid);
-  }, [paidAmount, grandTotal]);
+    return Math.max(0, effectivePayableAmount - paid);
+  }, [paidAmount, effectivePayableAmount]);
 
   const paymentStatus = useMemo(() => {
     const paid = Number(paidAmount || 0);
     if (paid === 0) return "Unpaid";
-    if (paid < grandTotal) return "Partial";
+    if (paid < effectivePayableAmount) return "Partial";
     return "Paid";
-  }, [paidAmount, grandTotal]);
+  }, [paidAmount, effectivePayableAmount]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleOpenUnitPicker = (item) => {
@@ -336,6 +362,7 @@ export default function POSScreen() {
       tax_amount: Number(taxAmount.toFixed(2)),
       discount: Number(discountTotal.toFixed(2)),
       grand_total: grandTotal,
+      payable_amount: effectivePayableAmount,
       round_off: roundOff,
       paid_amount: Number(paidAmount || 0),
       payment_status: paymentStatus,
@@ -376,8 +403,14 @@ export default function POSScreen() {
     setCompletedSale(null);
   };
 
-  const handleBarcodeScanned = useCallback(({ data }) => {
+  const handleBarcodeScanned = useCallback((event) => {
+    const { data, bounds } = event;
     if (scannedLock.current) return;
+
+    // We removed the strict bounding box coordinate check here.
+    // Device camera coordinates (especially on Android) don't always map 1:1 to screen layout coordinates,
+    // which caused valid scans inside the box to be rejected. The scanner will now confidently grab the barcode as soon as it is clear!
+
     scannedLock.current = true;
     setTimeout(() => {
       scannedLock.current = false;
@@ -393,8 +426,11 @@ export default function POSScreen() {
       if (matched.stock <= 0) {
         setLastScannedMessage(`⚠️ ${matched.name} is out of stock`);
       } else {
-        addToCart(matched);
-        setLastScannedMessage(`✅ Added ${matched.name}`);
+        setShowScanner(false);
+        setScannedProductForQty(matched);
+        setScanQuantity("1");
+        setShowScanQuantityModal(true);
+        setLastScannedMessage("");
       }
     } else {
       setLastScannedMessage(`❌ Barcode "${data}" not found`);
@@ -421,133 +457,92 @@ export default function POSScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+      {/* Orange header with back button */}
+      <View style={{
+        backgroundColor: '#f97316',
+        paddingTop: insets.top + 8,
+        paddingBottom: 10,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 20,
+            minWidth: 44,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+        </TouchableOpacity>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            🛒 Sell
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            {selectedCustomerId ? `Customer: ${customerName}` : customerName.trim() ? `Guest: ${customerName}` : 'Retail Terminal'}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          onPress={() => router.push('/sales-return')}
+          style={{
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 20,
+            minWidth: 44,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 4
+          }}
+        >
+          <Text style={{ fontSize: 12 }}>↩️</Text>
+          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>Return</Text>
+        </TouchableOpacity>
+      </View>
+
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
         className="flex-1"
       >
-        <ScrollView className="flex-1 px-4 py-4" keyboardShouldPersistTaps="handled">
-          
-          {/* Header */}
-          <View className="mb-4">
-            <Text className="text-slate-800 text-2xl font-black tracking-tight uppercase">
-              Retail Terminal
-            </Text>
-            <Text className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-              {selectedCustomerId
-                ? `Customer: ${customerName}`
-                : customerName.trim()
-                ? `New Guest: ${customerName}`
-                : "Walk-in Transaction"}
-            </Text>
-          </View>
+        <ScrollView
+          className="flex-1"
+          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
+        >
 
-          {/* Customer and Payment Details (Matching Web POS columns/fields layout) */}
-          <GlassCard className="mb-4 p-4">
-            <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
-              1. Customer & Payment Details
-            </Text>
-            <View className="gap-3">
-              {/* Customer Input */}
-              <View className="relative">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  Customer Name
-                </Text>
-                <TextInput
-                  value={customerSearch}
-                  onChangeText={handleCustomerInputChange}
-                  onFocus={() => setShowCustomerSuggestions(true)}
-                  placeholder="Search or Type Guest Name..."
-                  placeholderTextColor="#94a3b8"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
-                />
-
-                {/* Suggestions Overlay */}
-                {showCustomerSuggestions && filteredCustomers.length > 0 && (
-                  <View className="absolute top-14 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
-                    {filteredCustomers.map((c) => (
-                      <TouchableOpacity
-                        key={c.id}
-                        onPress={() => handleSelectCustomer(c)}
-                        className="p-3 border-b border-slate-50 flex-row justify-between items-center"
-                      >
-                        <View>
-                          <Text className="text-slate-800 font-bold text-xs">{c.name}</Text>
-                          {c.phone && <Text className="text-slate-400 text-[10px]">{c.phone}</Text>}
-                        </View>
-                        <Text className="text-slate-400 text-xs">➔</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </View>
-
-              {/* Phone input */}
-              <View>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  Phone Number
-                </Text>
-                <TextInput
-                  value={customerPhone}
-                  onChangeText={setCustomerPhone}
-                  placeholder="Enter Phone Number..."
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="numeric"
-                  disabled={!!selectedCustomerId}
-                  className={`bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${
-                    selectedCustomerId ? "opacity-60" : ""
-                  }`}
-                />
-              </View>
-
-              {/* Payment Methods */}
-              <View>
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                  Payment Method
-                </Text>
-                <View className="flex-row gap-2">
-                  {PAYMENT_METHODS.map((method) => {
-                    const isActive = paymentMethod === method.key;
-                    return (
-                      <TouchableOpacity
-                        key={method.key}
-                        onPress={() => setPaymentMethod(method.key)}
-                        activeOpacity={0.8}
-                        className={`flex-1 py-2.5 rounded-xl border items-center flex-row justify-center gap-1.5 ${
-                          isActive
-                            ? "bg-orange-500 border-orange-500 shadow-sm"
-                            : "bg-white border-slate-200"
-                        }`}
-                      >
-                        <Text className="text-sm">{method.icon}</Text>
-                        <Text
-                          className={`text-[10px] font-black uppercase tracking-wide ${
-                            isActive ? "text-white" : "text-slate-600"
-                          }`}
-                        >
-                          {method.label}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-            </View>
-          </GlassCard>
 
           {/* Product Search & Dropdown Picker (Matching Web Search Box) */}
-          <GlassCard className="mb-4 p-4">
-            <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
-              2. Add Products
+          <GlassCard className="mb-5 p-5">
+            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+              Add Products
             </Text>
-            <View className="flex-row gap-2">
+            <View className="flex-row gap-3">
               <View className="flex-1 relative">
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Search Product..."
                   placeholderTextColor="#94a3b8"
-                  className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
+                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                 />
 
                 {/* Search Suggestions Overlay */}
@@ -580,16 +575,16 @@ export default function POSScreen() {
               <TouchableOpacity
                 onPress={handleOpenScanner}
                 activeOpacity={0.8}
-                className="bg-orange-500 rounded-xl px-4 justify-center items-center"
+                className="bg-orange-500 rounded-2xl px-5 justify-center items-center shadow-lg"
               >
-                <Text className="text-white text-base">📷</Text>
+                <Text className="text-white text-xl">📷</Text>
               </TouchableOpacity>
             </View>
 
             {/* Quick Add Tags */}
             {quickAddProducts.length > 0 && (
-              <View className="mt-3">
-                <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
+              <View className="mt-4">
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">
                   🔥 Most Selling Products (Quick Add)
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
@@ -599,16 +594,15 @@ export default function POSScreen() {
                       <TouchableOpacity
                         key={p.id}
                         onPress={() => addToCart(p)}
-                        className={`px-3 py-1.5 rounded-xl border flex-row items-center gap-1.5 ${
-                          isInCart
-                            ? "bg-orange-50 border-orange-200"
-                            : "bg-white border-slate-200"
-                        }`}
+                        className={`px-4 py-2.5 rounded-2xl border-2 flex-row items-center gap-2 ${isInCart
+                          ? "bg-orange-50 border-orange-300"
+                          : "bg-white border-slate-200"
+                          }`}
                       >
-                        <Text className="text-[10px] font-bold text-slate-800 max-w-[100px]" numberOfLines={1}>
+                        <Text className="text-xs font-bold text-slate-800 max-w-[120px]" numberOfLines={1}>
                           {p.name}
                         </Text>
-                        <Text className="text-[9px] font-black text-orange-500">
+                        <Text className="text-xs font-black text-orange-500">
                           ₹{Math.round(p.price)}
                         </Text>
                       </TouchableOpacity>
@@ -620,14 +614,14 @@ export default function POSScreen() {
           </GlassCard>
 
           {/* Active Cart Section (Inline list like Web POS Table) */}
-          <GlassCard className="mb-4 p-4">
-            <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-slate-800 font-black text-xs uppercase tracking-wider">
-                3. Active Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)} Items)
+          <GlassCard className="mb-5 p-5">
+            <View className="flex-row justify-between items-center mb-4">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
+                Active Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)} Items)
               </Text>
               {cart.length > 0 && (
                 <TouchableOpacity onPress={() => setCart([])}>
-                  <Text className="text-rose-500 text-[10px] font-black uppercase tracking-wider">
+                  <Text className="text-rose-500 text-xs font-black uppercase tracking-wider">
                     Clear All
                   </Text>
                 </TouchableOpacity>
@@ -635,48 +629,56 @@ export default function POSScreen() {
             </View>
 
             {cart.length === 0 ? (
-              <View className="py-8 items-center justify-center">
-                <Text className="text-3xl mb-1">🛒</Text>
-                <Text className="text-slate-400 font-bold text-xs uppercase tracking-wide">
+              <View className="py-12 items-center justify-center">
+                <Text className="text-5xl mb-3">🛒</Text>
+                <Text className="text-slate-400 font-bold text-sm uppercase tracking-wide">
                   Empty Cart
+                </Text>
+                <Text className="text-slate-300 text-xs mt-1">
+                  Add products to get started
                 </Text>
               </View>
             ) : (
-              <View className="gap-3">
+              <ScrollView
+                style={{ maxHeight: 350 }}
+                contentContainerStyle={{ gap: 12, paddingBottom: 10 }}
+                showsVerticalScrollIndicator={true}
+                nestedScrollEnabled={true}
+              >
                 {itemsWithTotals.map((item) => (
                   <View
                     key={item.product_id}
-                    className="p-3 border border-slate-100 bg-slate-50/50 rounded-2xl gap-2"
+                    className="p-4 border-2 border-slate-100 bg-white rounded-2xl gap-3 shadow-sm"
                   >
                     {/* Item title & Delete */}
                     <View className="flex-row justify-between items-start">
-                      <View className="flex-1 pr-2">
-                        <Text className="text-slate-800 font-black text-xs uppercase" numberOfLines={1}>
+                      <View className="flex-1 pr-3">
+                        <Text className="text-slate-800 font-black text-sm uppercase" numberOfLines={1}>
                           {item.name}
                         </Text>
-                        <Text className="text-slate-400 text-[10px] font-bold">
+                        <Text className="text-slate-400 text-xs font-bold">
                           ₹{item.price} • Stock: {item.available_stock}
                         </Text>
                       </View>
                       <TouchableOpacity
                         onPress={() => removeFromCart(item.product_id)}
-                        className="bg-rose-50 p-1.5 rounded-lg border border-rose-100"
+                        className="bg-rose-50 p-2 rounded-xl border-2 border-rose-200"
                       >
-                        <Text className="text-rose-500 text-[10px]">🗑️</Text>
+                        <Text className="text-rose-500 text-sm">🗑️</Text>
                       </TouchableOpacity>
                     </View>
 
                     {/* Quantity controls & Unit Picker */}
                     <View className="flex-row justify-between items-center">
-                      <View className="flex-row border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                      <View className="flex-row border-2 border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
                         <TouchableOpacity
                           onPress={() => updateItemQuantity(item.product_id, item.quantity - 1)}
-                          className="px-2.5 py-1 bg-slate-100 active:bg-slate-200"
+                          className="px-4 py-2 bg-slate-100 active:bg-slate-200"
                         >
-                          <Text className="text-slate-800 font-bold text-xs">−</Text>
+                          <Text className="text-slate-800 font-bold text-sm">−</Text>
                         </TouchableOpacity>
-                        <View className="px-3 py-1 justify-center bg-white">
-                          <Text className="text-slate-800 font-black text-xs font-mono">
+                        <View className="px-4 py-2 justify-center bg-white">
+                          <Text className="text-slate-800 font-black text-sm font-mono">
                             {item.quantity}
                           </Text>
                         </View>
@@ -688,27 +690,27 @@ export default function POSScreen() {
                             }
                             updateItemQuantity(item.product_id, item.quantity + 1);
                           }}
-                          className="px-2.5 py-1 bg-slate-100 active:bg-slate-200"
+                          className="px-4 py-2 bg-slate-100 active:bg-slate-200"
                         >
-                          <Text className="text-slate-800 font-bold text-xs">＋</Text>
+                          <Text className="text-slate-800 font-bold text-sm">＋</Text>
                         </TouchableOpacity>
                       </View>
 
                       {/* Packaging Unit Selection */}
                       <TouchableOpacity
                         onPress={() => handleOpenUnitPicker(item)}
-                        className="bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm"
+                        className="bg-white border-2 border-slate-200 px-4 py-2.5 rounded-xl shadow-sm"
                       >
-                        <Text className="text-slate-700 text-[10px] font-black">
+                        <Text className="text-slate-700 text-xs font-black">
                           {item.unit ?? "Unit"} ▾
                         </Text>
                       </TouchableOpacity>
                     </View>
 
                     {/* GST & Discount fields inline */}
-                    <View className="flex-row gap-2 pt-1">
+                    <View className="flex-row gap-3 pt-2">
                       <View className="flex-1">
-                        <Text className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                        <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
                           GST %
                         </Text>
                         <TextInput
@@ -718,12 +720,12 @@ export default function POSScreen() {
                             updateCartItemField(item.product_id, "gst_rate", isNaN(parsed) ? 0 : parsed);
                           }}
                           keyboardType="numeric"
-                          className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-xs"
+                          className="bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-center font-bold text-sm"
                         />
                       </View>
 
                       <View className="flex-1">
-                        <Text className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                        <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
                           Disc
                         </Text>
                         <View className="flex-row">
@@ -734,16 +736,16 @@ export default function POSScreen() {
                               updateCartItemField(item.product_id, "discount", isNaN(parsed) ? 0 : parsed);
                             }}
                             keyboardType="numeric"
-                            className="flex-1 bg-white border border-slate-200 border-r-0 rounded-l-lg px-2 py-1 text-center font-bold text-xs"
+                            className="flex-1 bg-white border-2 border-slate-200 border-r-0 rounded-l-xl px-3 py-2 text-center font-bold text-sm"
                           />
                           <TouchableOpacity
                             onPress={() => {
                               const newType = item.discount_type === "percent" ? "fixed" : "percent";
                               updateCartItemField(item.product_id, "discount_type", newType);
                             }}
-                            className="bg-slate-200 px-2 py-1 rounded-r-lg border border-slate-200 justify-center"
+                            className="bg-slate-200 px-3 py-2 rounded-r-xl border-2 border-l-0 border-slate-200 justify-center"
                           >
-                            <Text className="text-[9px] font-black text-slate-700">
+                            <Text className="text-xs font-black text-slate-700">
                               {item.discount_type === "percent" ? "%" : "₹"}
                             </Text>
                           </TouchableOpacity>
@@ -751,29 +753,158 @@ export default function POSScreen() {
                       </View>
 
                       <View className="justify-end items-end pb-1 pr-1">
-                        <Text className="text-slate-400 text-[8px] font-bold uppercase">Subtotal</Text>
-                        <Text className="text-slate-800 font-bold text-xs font-mono">
+                        <Text className="text-slate-400 text-[10px] font-bold uppercase">Subtotal</Text>
+                        <Text className="text-slate-800 font-bold text-sm font-mono">
                           {fmt(item.subtotal)}
                         </Text>
                       </View>
                     </View>
                   </View>
                 ))}
-              </View>
+              </ScrollView>
             )}
           </GlassCard>
+          {/* Customer and Payment Details (Matching Web POS columns/fields layout) */}
+          <GlassCard className="mb-5 p-5">
+            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+              Customer & Payment Details
+            </Text>
+            <View className="gap-3">
+              {/* Payment Methods – Segmented Switcher */}
+              <View>
+                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                  Payment Method
+                </Text>
+                <View style={{
+                  flexDirection: 'row',
+                  backgroundColor: '#f1f5f9',
+                  borderRadius: 16,
+                  padding: 5,
+                  borderWidth: 1,
+                  borderColor: '#e2e8f0',
+                }}>
+                  {PAYMENT_METHODS.map((method) => {
+                    const isActive = paymentMethod === method.key;
+                    return (
+                      <TouchableOpacity
+                        key={method.key}
+                        onPress={() => setPaymentMethod(method.key)}
+                        activeOpacity={0.8}
+                        style={[{
+                          flex: 1,
+                          paddingVertical: 12,
+                          borderRadius: 12,
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexDirection: 'row',
+                          gap: 6,
+                        }, isActive && {
+                          backgroundColor: method.activeBg,
+                          shadowColor: method.shadowColor,
+                          shadowOffset: { width: 0, height: 4 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 6,
+                          elevation: 4,
+                        }]}
+                      >
+                        <Text style={{ fontSize: 14 }}>{method.icon}</Text>
+                        <Text style={{
+                          fontSize: 11,
+                          fontWeight: '900',
+                          textTransform: 'uppercase',
+                          letterSpacing: 0.5,
+                          color: isActive ? '#fff' : '#64748b',
+                        }}>{method.label}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              {/* Customer Info - Only shown when taking on Credit (Partial Payment) */}
+              {(grandTotal > 0 && Number(paidAmount || 0) < grandTotal) && (
+                <>
+                  {/* Customer Input */}
+                  <View className="relative mt-2">
+                    <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                      Customer Name
+                    </Text>
+                    <TextInput
+                      value={customerSearch}
+                      onChangeText={handleCustomerInputChange}
+                      onFocus={() => setShowCustomerSuggestions(true)}
+                      placeholder="Search or Type Guest Name..."
+                      placeholderTextColor="#94a3b8"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                    />
+
+                    {/* Suggestions Overlay */}
+                    {showCustomerSuggestions && filteredCustomers.length > 0 && (
+                      <View className="absolute top-20 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
+                        {filteredCustomers.map((c) => (
+                          <TouchableOpacity
+                            key={c.id}
+                            onPress={() => handleSelectCustomer(c)}
+                            className="p-3 border-b border-slate-50 flex-row justify-between items-center"
+                          >
+                            <View>
+                              <Text className="text-slate-800 font-bold text-xs">{c.name}</Text>
+                              {c.phone && <Text className="text-slate-400 text-[10px]">{c.phone}</Text>}
+                            </View>
+                            <Text className="text-slate-400 text-xs">➔</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Phone input */}
+                  <View>
+                    <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                      Phone Number *
+                    </Text>
+                    <TextInput
+                      value={customerPhone}
+                      onChangeText={setCustomerPhone}
+                      placeholder="Enter Phone Number..."
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="numeric"
+                      disabled={!!selectedCustomerId}
+                      className={`bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${selectedCustomerId ? "opacity-60 bg-slate-100" : ""
+                        }`}
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+          </GlassCard>
+
 
           {/* Checkout & Bill Summary (Matching Web POS Summary Sidebar/Panel) */}
-          <GlassCard className="mb-8 p-4">
-            <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
-              4. Checkout & Total
+          <GlassCard className="mb-8 p-5">
+            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+              Checkout & Total
             </Text>
-            
-            <View className="gap-3">
-              {/* Paid amount & Notes */}
+
+            <View className="gap-4">
+              {/* Payable amount & Paid amount */}
               <View className="flex-row gap-3">
                 <View className="flex-1">
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                    Payable Amount
+                  </Text>
+                  <TextInput
+                    value={payableAmount}
+                    onChangeText={(val) => {
+                      setIsPayableAmountEdited(true);
+                      setPayableAmount(val);
+                    }}
+                    keyboardType="numeric"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
                     Amount Paid
                   </Text>
                   <TextInput
@@ -783,26 +914,24 @@ export default function POSScreen() {
                       setPaidAmount(val);
                     }}
                     keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 font-black text-xs"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
                   />
                 </View>
 
                 {/* IGST Switch */}
                 <View className="items-center justify-end pb-1">
-                  <Text className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">
                     IGST Out State
                   </Text>
                   <TouchableOpacity
                     onPress={() => setIsOutsideState(!isOutsideState)}
                     activeOpacity={0.8}
-                    className={`w-9 h-5 rounded-full relative justify-center ${
-                      isOutsideState ? "bg-orange-500" : "bg-slate-300"
-                    }`}
+                    className={`w-12 h-6 rounded-full relative justify-center ${isOutsideState ? "bg-orange-500" : "bg-slate-300"
+                      }`}
                   >
                     <View
-                      className={`w-4 h-4 bg-white rounded-full absolute ${
-                        isOutsideState ? "right-0.5" : "left-0.5"
-                      }`}
+                      className={`w-5 h-5 bg-white rounded-full absolute ${isOutsideState ? "right-0.5" : "left-0.5"
+                        }`}
                     />
                   </TouchableOpacity>
                 </View>
@@ -814,31 +943,31 @@ export default function POSScreen() {
                 onChangeText={setAdditionalNotes}
                 placeholder="Transaction notes / comments..."
                 placeholderTextColor="#94a3b8"
-                className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
               />
 
               {/* Math breakdown */}
-              <View className="border-t border-slate-100 pt-3 gap-1">
+              <View className="border-t-2 border-slate-100 pt-4 gap-2">
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-500 text-xs">Subtotal</Text>
-                  <Text className="text-slate-800 text-xs font-semibold font-mono">
+                  <Text className="text-slate-500 text-sm font-semibold">Subtotal</Text>
+                  <Text className="text-slate-800 text-sm font-semibold font-mono">
                     {fmt(subtotal)}
                   </Text>
                 </View>
 
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-500 text-xs">
+                  <Text className="text-slate-500 text-sm font-semibold">
                     {isOutsideState ? "IGST Total" : "CGST + SGST"}
                   </Text>
-                  <Text className="text-slate-800 text-xs font-semibold font-mono">
+                  <Text className="text-slate-800 text-sm font-semibold font-mono">
                     {fmt(taxAmount)}
                   </Text>
                 </View>
 
                 {discountTotal > 0 && (
                   <View className="flex-row justify-between">
-                    <Text className="text-slate-500 text-xs">Total Discount</Text>
-                    <Text className="text-rose-500 text-xs font-semibold font-mono">
+                    <Text className="text-slate-500 text-sm font-semibold">Total Discount</Text>
+                    <Text className="text-rose-500 text-sm font-semibold font-mono">
                       -{fmt(discountTotal)}
                     </Text>
                   </View>
@@ -846,8 +975,8 @@ export default function POSScreen() {
 
                 {roundOff !== 0 && (
                   <View className="flex-row justify-between">
-                    <Text className="text-slate-500 text-xs">Round Off</Text>
-                    <Text className="text-slate-800 text-xs font-semibold font-mono">
+                    <Text className="text-slate-500 text-sm font-semibold">Round Off</Text>
+                    <Text className="text-slate-800 text-sm font-semibold font-mono">
                       {roundOff > 0 ? "+" : ""}{roundOff.toFixed(2)}
                     </Text>
                   </View>
@@ -855,25 +984,25 @@ export default function POSScreen() {
 
                 {/* Change or due info */}
                 {changeDue > 0 ? (
-                  <View className="flex-row justify-between pt-1">
-                    <Text className="text-slate-400 text-xs uppercase font-bold">Change Due</Text>
-                    <Text className="text-green-600 font-bold text-xs font-mono">
+                  <View className="flex-row justify-between pt-2">
+                    <Text className="text-slate-400 text-sm uppercase font-bold">Change Due</Text>
+                    <Text className="text-green-600 font-bold text-sm font-mono">
                       {fmtInt(changeDue)}
                     </Text>
                   </View>
                 ) : balanceOutstanding > 0 ? (
-                  <View className="flex-row justify-between pt-1">
-                    <Text className="text-rose-400 text-xs uppercase font-bold">Balance Outstanding</Text>
-                    <Text className="text-rose-500 font-bold text-xs font-mono">
+                  <View className="flex-row justify-between pt-2">
+                    <Text className="text-rose-400 text-sm uppercase font-bold">Balance Outstanding</Text>
+                    <Text className="text-rose-500 font-bold text-sm font-mono">
                       {fmtInt(balanceOutstanding)}
                     </Text>
                   </View>
                 ) : null}
 
                 {/* Grand Total */}
-                <View className="flex-row justify-between pt-2 border-t border-slate-100 mt-2">
-                  <Text className="text-slate-800 font-black text-sm uppercase">Grand Total</Text>
-                  <Text className="text-orange-500 font-black text-lg font-mono">
+                <View className="flex-row justify-between pt-3 border-t-2 border-slate-100 mt-3">
+                  <Text className="text-slate-800 font-black text-base uppercase">Grand Total</Text>
+                  <Text className="text-orange-500 font-black text-xl font-mono">
                     {fmtInt(grandTotal)}
                   </Text>
                 </View>
@@ -884,34 +1013,57 @@ export default function POSScreen() {
                 onPress={handleCheckoutSubmit}
                 disabled={storeLoading || cart.length === 0}
                 activeOpacity={0.85}
-                className="mt-2"
+                className="mt-3"
                 style={{
                   backgroundColor: storeLoading || cart.length === 0 ? "#fdba74" : "#f97316",
-                  borderRadius: 16,
-                  paddingVertical: 14,
+                  borderRadius: 20,
+                  paddingVertical: 18,
                   alignItems: "center",
                   justifyContent: "center",
                   flexDirection: "row",
                   shadowColor: "#ea580c",
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.3,
-                  shadowRadius: 8,
-                  elevation: 6,
+                  shadowOffset: { width: 0, height: 6 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 12,
+                  elevation: 8,
                 }}
               >
                 {storeLoading ? (
                   <ActivityIndicator size="small" color="#ffffff" />
                 ) : (
-                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 1.2 }}>
+                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 1.5 }}>
                     Complete Checkout
                   </Text>
                 )}
               </TouchableOpacity>
             </View>
           </GlassCard>
-
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Floating Scanner Button */}
+      <TouchableOpacity
+        onPress={handleOpenScanner}
+        style={{
+          position: 'absolute',
+          bottom: 20,
+          right: 20,
+          backgroundColor: '#f97316',
+          borderRadius: 50,
+          width: 60,
+          height: 60,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: '#f97316',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.4,
+          shadowRadius: 8,
+          elevation: 8,
+          zIndex: 1000,
+        }}
+      >
+        <Text style={{ fontSize: 28 }}>📷</Text>
+      </TouchableOpacity>
 
       {/* ── UNIT PICKER MODAL ──────────────────────────────────────────────── */}
       <Modal
@@ -921,9 +1073,9 @@ export default function POSScreen() {
         onRequestClose={() => setShowUnitModal(false)}
       >
         <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white border-t border-slate-100 rounded-t-3xl px-5 pt-4 pb-10 shadow-xl max-h-[50%]">
-            <View className="self-center w-10 h-1 bg-slate-200 rounded-full mb-4" />
-            <Text className="text-slate-800 font-black text-base mb-4 uppercase tracking-tight">
+          <View className="bg-white border-t-2 border-slate-100 rounded-t-3xl px-6 pt-5 pb-10 shadow-2xl max-h-[50%]">
+            <View className="self-center w-12 h-1.5 bg-slate-200 rounded-full mb-5" />
+            <Text className="text-slate-800 font-black text-lg mb-5 uppercase tracking-tight">
               Select Packaging Unit
             </Text>
 
@@ -932,15 +1084,15 @@ export default function POSScreen() {
                 <TouchableOpacity
                   key={u.id}
                   onPress={() => handleSelectUnit(u)}
-                  className="flex-row items-center justify-between py-3.5 border-b border-slate-50"
+                  className="flex-row items-center justify-between py-4 border-b border-slate-50 active:bg-slate-50"
                 >
                   <View>
-                    <Text className="text-slate-800 font-black text-xs uppercase">
+                    <Text className="text-slate-800 font-black text-sm uppercase">
                       {u.name} ({u.short_name})
                     </Text>
                   </View>
                   {activeUnitItem?.unit_id === u.id && (
-                    <Text className="text-orange-500 font-black">✓</Text>
+                    <Text className="text-orange-500 font-black text-lg">✓</Text>
                   )}
                 </TouchableOpacity>
               ))}
@@ -948,9 +1100,9 @@ export default function POSScreen() {
 
             <TouchableOpacity
               onPress={() => setShowUnitModal(false)}
-              className="mt-6 py-3.5 rounded-2xl bg-slate-100 border border-slate-200 items-center active:bg-slate-200"
+              className="mt-6 py-4 rounded-2xl bg-slate-100 border-2 border-slate-200 items-center active:bg-slate-200"
             >
-              <Text className="text-slate-700 font-black text-xs uppercase tracking-wider">Cancel</Text>
+              <Text className="text-slate-700 font-black text-sm uppercase tracking-wider">Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -964,70 +1116,70 @@ export default function POSScreen() {
         onRequestClose={handleStartNewTransaction}
       >
         <SafeAreaView className="flex-1 bg-slate-100 justify-between">
-          <ScrollView className="flex-1 px-5 pt-6" showsVerticalScrollIndicator={false}>
+          <ScrollView className="flex-1 px-6 pt-8" showsVerticalScrollIndicator={false}>
             {/* Success Status banner */}
-            <View className="items-center mb-6">
-              <View className="w-14 h-14 bg-green-100 rounded-2xl items-center justify-center mb-3">
-                <Text className="text-green-600 text-3xl">✓</Text>
+            <View className="items-center mb-8">
+              <View className="w-20 h-20 bg-green-100 rounded-3xl items-center justify-center mb-4 shadow-lg">
+                <Text className="text-green-600 text-4xl">✓</Text>
               </View>
-              <Text className="text-slate-800 text-xl font-black uppercase tracking-tight">
+              <Text className="text-slate-800 text-2xl font-black uppercase tracking-tight">
                 Transaction Success!
               </Text>
-              <Text className="text-slate-400 text-xs font-bold mt-0.5">
+              <Text className="text-slate-400 text-sm font-bold mt-2">
                 The sale has been saved to the database ledger.
               </Text>
             </View>
 
             {/* Simulated Printed Receipt Card */}
-            <View className="bg-white p-5 rounded-3xl border border-slate-200 shadow-md relative overflow-hidden mb-6">
+            <View className="bg-white p-6 rounded-3xl border-2 border-slate-200 shadow-lg relative overflow-hidden mb-8">
               {/* Receipt teeth visual dots */}
-              <View className="absolute top-0 left-0 w-full flex-row justify-between px-3 pt-1.5 opacity-10">
-                {[...Array(14)].map((_, i) => (
-                  <View key={i} className="w-1.5 h-1.5 bg-slate-900 rounded-full" />
+              <View className="absolute top-0 left-0 w-full flex-row justify-between px-4 pt-2 opacity-10">
+                {[...Array(16)].map((_, i) => (
+                  <View key={i} className="w-2 h-2 bg-slate-900 rounded-full" />
                 ))}
               </View>
 
-              <View className="text-center items-center mt-3 mb-4 border-b border-slate-100 pb-3">
-                <Text className="font-black text-xs uppercase tracking-widest text-slate-800">
+              <View className="text-center items-center mt-4 mb-5 border-b-2 border-slate-100 pb-4">
+                <Text className="font-black text-sm uppercase tracking-widest text-slate-800">
                   Storeman Retail POS
                 </Text>
-                <Text className="text-[9px] text-slate-400 font-bold uppercase mt-0.5">
+                <Text className="text-xs text-slate-400 font-bold uppercase mt-1">
                   Receipt Ref: {completedSale?.reference}
                 </Text>
               </View>
 
               {/* Metadata */}
-              <View className="border-b border-dashed border-slate-200 pb-3 mb-3.5" style={{gap: 4}}>
+              <View className="border-b-2 border-dashed border-slate-200 pb-4 mb-4" style={{ gap: 5 }}>
                 <View className="flex-row justify-between">
-                  <Text className="text-[9px] font-black text-slate-400 uppercase">Customer:</Text>
-                  <Text className="text-[9px] font-black text-slate-800 uppercase">
+                  <Text className="text-xs font-black text-slate-400 uppercase">Customer:</Text>
+                  <Text className="text-xs font-black text-slate-800 uppercase">
                     {completedSale?.customer_display_name}
                   </Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-[9px] font-black text-slate-400 uppercase">Date:</Text>
-                  <Text className="text-[9px] font-black text-slate-800 uppercase">
+                  <Text className="text-xs font-black text-slate-400 uppercase">Date:</Text>
+                  <Text className="text-xs font-black text-slate-800 uppercase">
                     {completedSale?.sale_date}
                   </Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-[9px] font-black text-slate-400 uppercase">Payment Mode:</Text>
-                  <Text className="text-[9px] font-black text-slate-800 uppercase">
+                  <Text className="text-xs font-black text-slate-400 uppercase">Payment Mode:</Text>
+                  <Text className="text-xs font-black text-slate-800 uppercase">
                     {completedSale?.payment_method} ({completedSale?.payment_status})
                   </Text>
                 </View>
               </View>
 
               {/* Items List */}
-              <View className="mb-4" style={{gap: 8}}>
+              <View className="mb-5" style={{ gap: 10 }}>
                 {completedSale?.items.map((item, idx) => {
                   const prod = products.find((p) => p.id === item.product_id);
                   return (
                     <View key={idx} className="flex-row justify-between">
-                      <Text className="text-[10px] font-bold text-slate-600 max-w-[70%]">
+                      <Text className="text-xs font-bold text-slate-600 max-w-[70%]">
                         {item.quantity}x {prod ? prod.name : "Item"}
                       </Text>
-                      <Text className="text-[10px] font-black text-slate-800 font-mono">
+                      <Text className="text-xs font-black text-slate-800 font-mono">
                         {fmt(item.subtotal)}
                       </Text>
                     </View>
@@ -1036,32 +1188,32 @@ export default function POSScreen() {
               </View>
 
               {/* Calculations Summary */}
-              <View className="border-t border-dashed border-slate-200 pt-3" style={{gap: 4}}>
+              <View className="border-t-2 border-dashed border-slate-200 pt-4" style={{ gap: 5 }}>
                 <View className="flex-row justify-between">
-                  <Text className="text-[9px] font-bold text-slate-400 uppercase">Taxable Subtotal</Text>
-                  <Text className="text-[9px] font-bold text-slate-600 font-mono">
+                  <Text className="text-xs font-bold text-slate-400 uppercase">Taxable Subtotal</Text>
+                  <Text className="text-xs font-bold text-slate-600 font-mono">
                     ₹{completedSale?.subtotal}
                   </Text>
                 </View>
 
                 {completedSale?.is_outside_state ? (
                   <View className="flex-row justify-between">
-                    <Text className="text-[9px] font-bold text-slate-400 uppercase">IGST Tax</Text>
-                    <Text className="text-[9px] font-bold text-slate-600 font-mono">
+                    <Text className="text-xs font-bold text-slate-400 uppercase">IGST Tax</Text>
+                    <Text className="text-xs font-bold text-slate-600 font-mono">
                       ₹{completedSale?.tax_amount}
                     </Text>
                   </View>
                 ) : (
                   <>
                     <View className="flex-row justify-between">
-                      <Text className="text-[9px] font-bold text-slate-400 uppercase">CGST Tax</Text>
-                      <Text className="text-[9px] font-bold text-slate-600 font-mono">
+                      <Text className="text-xs font-bold text-slate-400 uppercase">CGST Tax</Text>
+                      <Text className="text-xs font-bold text-slate-600 font-mono">
                         ₹{((completedSale?.tax_amount ?? 0) / 2).toFixed(2)}
                       </Text>
                     </View>
                     <View className="flex-row justify-between">
-                      <Text className="text-[9px] font-bold text-slate-400 uppercase">SGST Tax</Text>
-                      <Text className="text-[9px] font-bold text-slate-600 font-mono">
+                      <Text className="text-xs font-bold text-slate-400 uppercase">SGST Tax</Text>
+                      <Text className="text-xs font-bold text-slate-600 font-mono">
                         ₹{((completedSale?.tax_amount ?? 0) / 2).toFixed(2)}
                       </Text>
                     </View>
@@ -1070,8 +1222,8 @@ export default function POSScreen() {
 
                 {completedSale?.discount > 0 && (
                   <View className="flex-row justify-between">
-                    <Text className="text-[9px] font-bold text-rose-400 uppercase">Total Discount</Text>
-                    <Text className="text-[9px] font-bold text-rose-500 font-mono">
+                    <Text className="text-xs font-bold text-rose-400 uppercase">Total Discount</Text>
+                    <Text className="text-xs font-bold text-rose-500 font-mono">
                       -₹{completedSale?.discount}
                     </Text>
                   </View>
@@ -1079,46 +1231,46 @@ export default function POSScreen() {
 
                 {completedSale?.round_off !== 0 && (
                   <View className="flex-row justify-between">
-                    <Text className="text-[9px] font-bold text-slate-400 uppercase">Round Off</Text>
-                    <Text className="text-[9px] font-bold text-slate-600 font-mono">
+                    <Text className="text-xs font-bold text-slate-400 uppercase">Round Off</Text>
+                    <Text className="text-xs font-bold text-slate-600 font-mono">
                       {completedSale?.round_off > 0 ? "+" : ""}{completedSale?.round_off}
                     </Text>
                   </View>
                 )}
 
-                <View className="flex-row justify-between pt-2 border-t border-slate-100 mt-2.5">
-                  <Text className="text-[11px] font-black text-slate-800 uppercase">Grand Total</Text>
-                  <Text className="text-orange-500 font-black text-sm font-mono">
+                <View className="flex-row justify-between pt-3 border-t-2 border-slate-100 mt-3">
+                  <Text className="text-sm font-black text-slate-800 uppercase">Grand Total</Text>
+                  <Text className="text-orange-500 font-black text-base font-mono">
                     {fmtInt(completedSale?.grand_total)}
                   </Text>
                 </View>
 
-                <View className="flex-row justify-between pt-1">
-                  <Text className="text-[9px] font-black text-slate-400 uppercase">Paid Amount</Text>
-                  <Text className="text-slate-800 font-black text-[10px] font-mono">
+                <View className="flex-row justify-between pt-2">
+                  <Text className="text-xs font-black text-slate-400 uppercase">Paid Amount</Text>
+                  <Text className="text-slate-800 font-black text-xs font-mono">
                     ₹{completedSale?.paid_amount}
                   </Text>
                 </View>
 
                 {completedSale?.paid_amount > completedSale?.grand_total ? (
                   <View className="flex-row justify-between">
-                    <Text className="text-[9px] font-black text-green-500 uppercase">Change Returned</Text>
-                    <Text className="text-green-600 font-black text-[10px] font-mono">
+                    <Text className="text-xs font-black text-green-500 uppercase">Change Returned</Text>
+                    <Text className="text-green-600 font-black text-xs font-mono">
                       ₹{(completedSale?.paid_amount - completedSale?.grand_total).toFixed(2)}
                     </Text>
                   </View>
                 ) : completedSale?.paid_amount < completedSale?.grand_total ? (
                   <View className="flex-row justify-between">
-                    <Text className="text-[9px] font-black text-rose-400 uppercase">Outstanding Balance</Text>
-                    <Text className="text-rose-500 font-black text-[10px] font-mono">
+                    <Text className="text-xs font-black text-rose-400 uppercase">Outstanding Balance</Text>
+                    <Text className="text-rose-500 font-black text-xs font-mono">
                       ₹{(completedSale?.grand_total - completedSale?.paid_amount).toFixed(2)}
                     </Text>
                   </View>
                 ) : null}
               </View>
 
-              <View className="mt-8 items-center">
-                <Text className="text-[8px] font-black text-slate-300 uppercase tracking-wider italic">
+              <View className="mt-10 items-center">
+                <Text className="text-xs font-black text-slate-300 uppercase tracking-wider italic">
                   Digital Invoice Certified
                 </Text>
               </View>
@@ -1126,13 +1278,13 @@ export default function POSScreen() {
           </ScrollView>
 
           {/* Action buttons */}
-          <View className="p-5 bg-white border-t border-slate-200" style={{gap: 10}}>
+          <View className="p-6 bg-white border-t-2 border-slate-200" style={{ gap: 12 }}>
             <TouchableOpacity
               onPress={() => printThermalReceipt(completedSale)}
               activeOpacity={0.85}
-              style={{ width: "100%", paddingVertical: 18, backgroundColor: "#f97316", borderRadius: 20, alignItems: "center", elevation: 4 }}
+              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#f97316", borderRadius: 24, alignItems: "center", elevation: 6, shadowColor: "#f97316", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
             >
-              <Text className="text-white font-black text-xs uppercase tracking-widest">
+              <Text className="text-white font-black text-sm uppercase tracking-widest">
                 🖨️ Print Thermal Receipt
               </Text>
             </TouchableOpacity>
@@ -1140,18 +1292,18 @@ export default function POSScreen() {
             <TouchableOpacity
               onPress={() => Alert.alert("Print A4 Invoice", "Generating A4 Invoice PDF file... PDF downloaded to local storage.")}
               activeOpacity={0.85}
-              style={{ width: "100%", paddingVertical: 18, backgroundColor: "#1e293b", borderRadius: 20, alignItems: "center" }}
+              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#1e293b", borderRadius: 24, alignItems: "center", elevation: 4, shadowColor: "#1e293b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
             >
-              <Text className="text-white font-black text-xs uppercase tracking-widest">
+              <Text className="text-white font-black text-sm uppercase tracking-widest">
                 📄 Print A4 Invoice
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={handleStartNewTransaction}
-              className="w-full py-3.5 items-center"
+              className="w-full py-4 items-center"
             >
-              <Text className="text-slate-400 font-black text-[10px] uppercase tracking-widest">
+              <Text className="text-slate-400 font-black text-xs uppercase tracking-widest">
                 New Transaction
               </Text>
             </TouchableOpacity>
@@ -1166,14 +1318,24 @@ export default function POSScreen() {
       >
         <SafeAreaView className="flex-1 bg-black justify-between">
           {/* Header overlay */}
-          <View className="p-5 flex-row justify-between items-center z-10 bg-black/60">
-            <Text className="text-white font-black text-base uppercase">Scan Item Barcode</Text>
-            <TouchableOpacity
-              onPress={() => setShowScanner(false)}
-              className="bg-white/20 p-2 rounded-full"
-            >
-              <Text className="text-white text-xs font-bold px-2">✕ Close</Text>
-            </TouchableOpacity>
+          <View className="p-6 flex-row justify-between items-center z-10 bg-black/60">
+            <Text className="text-white font-black text-lg uppercase">Scan Item Barcode</Text>
+            <View className="flex-row gap-3">
+              <TouchableOpacity
+                onPress={() => setIsTorchOn(!isTorchOn)}
+                className={`p-3 rounded-full ${isTorchOn ? 'bg-orange-500' : 'bg-white/20'}`}
+              >
+                <Text className="text-white text-sm font-bold px-3">
+                  {isTorchOn ? "🔦 Off" : "🔦 On"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowScanner(false)}
+                className="bg-white/20 p-3 rounded-full"
+              >
+                <Text className="text-white text-sm font-bold px-3">✕ Close</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Camera Frame */}
@@ -1182,6 +1344,7 @@ export default function POSScreen() {
               <CameraView
                 style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
                 facing="back"
+                enableTorch={isTorchOn}
                 onBarcodeScanned={handleBarcodeScanned}
               />
             ) : (
@@ -1192,30 +1355,124 @@ export default function POSScreen() {
               </View>
             )}
             {/* Scanner Target Frame */}
-            <View className="w-64 h-64 border-2 border-orange-500 rounded-3xl justify-center items-center bg-transparent">
-              <View className="w-60 h-0.5 bg-red-500 opacity-60" />
+            <View className="w-80 h-48 border-2 border-orange-500 rounded-3xl justify-center items-center bg-transparent">
+              <View className="w-72 h-0.5 bg-red-500 opacity-60" />
             </View>
           </View>
 
           {/* Status Bar overlay */}
-          <View className="p-6 bg-black/80 items-center justify-center min-h-[100px]">
+          <View className="p-8 bg-black/80 items-center justify-center min-h-[120px]">
             {lastScannedMessage ? (
-              <Text className="text-white font-black text-sm text-center mb-3">
+              <Text className="text-white font-black text-base text-center mb-4">
                 {lastScannedMessage}
               </Text>
             ) : (
-              <Text className="text-slate-400 text-xs text-center mb-3">
+              <Text className="text-slate-400 text-sm text-center mb-4">
                 Align the barcode inside the orange box.
               </Text>
             )}
             <TouchableOpacity
               onPress={() => setShowScanner(false)}
-              className="bg-orange-500 py-3 px-8 rounded-xl"
+              className="bg-orange-500 py-4 px-10 rounded-2xl shadow-lg"
             >
-              <Text className="text-white font-black text-xs uppercase tracking-wider">Done</Text>
+              <Text className="text-white font-black text-sm uppercase tracking-wider">Done</Text>
             </TouchableOpacity>
           </View>
         </SafeAreaView>
+      </Modal>
+
+      {/* Scan Quantity Modal */}
+      <Modal
+        visible={showScanQuantityModal}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowScanQuantityModal(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          className="flex-1 bg-black/50 justify-center items-center p-6"
+        >
+          <View className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
+            <View className="flex-row justify-between items-center mb-5">
+              <Text className="text-slate-800 font-black text-lg uppercase tracking-tight">
+                Add to Cart
+              </Text>
+              <TouchableOpacity onPress={() => setShowScanQuantityModal(false)}>
+                <Text className="text-slate-400 font-bold text-lg">✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text className="text-slate-600 font-bold text-sm mb-4" numberOfLines={2}>
+              {scannedProductForQty?.name}
+            </Text>
+
+            <View className="mb-6">
+              <Text className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                Quantity
+              </Text>
+              <View className="flex-row items-center justify-between border-2 border-slate-200 rounded-2xl p-2 bg-slate-50">
+                <TouchableOpacity
+                  onPress={() => setScanQuantity(String(Math.max(1, parseInt(scanQuantity || 0) - 1)))}
+                  className="bg-white px-4 py-3 rounded-xl shadow-sm border border-slate-200"
+                >
+                  <Text className="text-slate-800 font-black text-lg">−</Text>
+                </TouchableOpacity>
+
+                <TextInput
+                  value={scanQuantity}
+                  onChangeText={setScanQuantity}
+                  keyboardType="numeric"
+                  className="flex-1 text-center font-black text-xl text-slate-800"
+                  selectTextOnFocus
+                />
+
+                <TouchableOpacity
+                  onPress={() => setScanQuantity(String(parseInt(scanQuantity || 0) + 1))}
+                  className="bg-white px-4 py-3 rounded-xl shadow-sm border border-slate-200"
+                >
+                  <Text className="text-slate-800 font-black text-lg">＋</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            <View className="gap-3">
+              <TouchableOpacity
+                onPress={() => {
+                  const qty = parseInt(scanQuantity, 10);
+                  if (!isNaN(qty) && qty > 0) {
+                    addToCart(scannedProductForQty, qty);
+                    setShowScanQuantityModal(false);
+                  } else {
+                    Alert.alert("Invalid Quantity", "Please enter a valid quantity greater than 0.");
+                  }
+                }}
+                className="bg-orange-500 py-4 rounded-2xl shadow-lg shadow-orange-500/30"
+              >
+                <Text className="text-white text-center font-black uppercase tracking-wider">
+                  Add to Cart
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  const qty = parseInt(scanQuantity, 10);
+                  if (!isNaN(qty) && qty > 0) {
+                    addToCart(scannedProductForQty, qty);
+                    setShowScanQuantityModal(false);
+                    setTimeout(() => setShowScanner(true), 400); // Wait for modal to close
+                  } else {
+                    Alert.alert("Invalid Quantity", "Please enter a valid quantity greater than 0.");
+                  }
+                }}
+                className="bg-slate-800 py-4 rounded-2xl shadow-lg"
+              >
+                <Text className="text-white text-center font-black uppercase tracking-wider">
+                  Add & Scan Again 📷
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

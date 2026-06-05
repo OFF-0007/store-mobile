@@ -5,26 +5,29 @@
  * clear typography, and vibrant green/orange status accents.
  */
 import React from "react";
-import { Alert, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Alert, ScrollView, Text, View, TouchableOpacity } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/store/authStore";
 import { Button, GlassCard } from "@/components/ui";
 import { useEffect, useState } from "react";
+import { useRouter } from "expo-router";
 let BLEPrinter = null;
 try { BLEPrinter = require("react-native-thermal-receipt-printer").BLEPrinter; } catch (e) { console.warn("BLEPrinter module not available:", e.message); }
 
 const PERMISSION_LABELS = {
-  dashboard: { label: "View Dashboard",   icon: "🏠" },
-  pos:       { label: "Point of Sale",    icon: "🛒" },
-  purchase:  { label: "Create Purchases", icon: "🛍️" },
-  stock:     { label: "Manage Stock",     icon: "📦" },
-  settings:  { label: "Settings",         icon: "⚙️" },
+  dashboard: { label: "View Dashboard", icon: "🏠" },
+  pos: { label: "Point of Sale", icon: "🛒" },
+  purchase: { label: "Create Purchases", icon: "🛍️" },
+  stock: { label: "Manage Stock", icon: "📦" },
+  settings: { label: "Settings", icon: "⚙️" },
 };
 
 export default function SettingsScreen() {
   const { user, logout, isLoading } = useAuthStore();
   const [printerDevices, setPrinterDevices] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Load paired/available Bluetooth devices
   async function loadDevices() {
@@ -53,13 +56,56 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+      {/* Orange header with back button */}
+      <View style={{
+        backgroundColor: '#f97316',
+        paddingTop: insets.top + 8,
+        paddingBottom: 10,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 20,
+            minWidth: 44,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+        </TouchableOpacity>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            ⚙️ Settings
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            Preferences & Account
+          </Text>
+        </View>
+
+        <View style={{ minWidth: 44 }} />
+      </View>
+
       <ScrollView
         className="flex-1"
         contentContainerClassName="px-4 py-6 pb-12"
         showsVerticalScrollIndicator={false}
       >
-        <Text className="text-slate-800 text-2xl font-black tracking-tight mb-6 uppercase">Settings</Text>
 
         {/* ── Profile card ─────────────────────────────────────────────────── */}
         <GlassCard className="mb-4">
@@ -81,56 +127,28 @@ export default function SettingsScreen() {
           </View>
         </GlassCard>
 
-        {/* ── Permissions ──────────────────────────────────────────────────── */}
+
+
+        {/* ── Business Reports ─────────────────────────────────────────────── */}
         <GlassCard className="mb-4">
           <Text className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
-            Module Access
+            Business Reports
           </Text>
-          <View className="gap-2">
-            {Object.entries(PERMISSION_LABELS).map(([key, meta]) => {
-              const hasAccess = user?.permissions?.includes(key) ?? false;
-              return (
-                <View key={key} className="flex-row items-center justify-between py-1">
-                  <View className="flex-row items-center gap-3">
-                    <Text className="text-base">{meta.icon}</Text>
-                    <Text className="text-slate-600 text-sm font-medium">{meta.label}</Text>
-                  </View>
-                  <View className={`px-2.5 py-0.5 rounded-full ${hasAccess ? "bg-emerald-50 border border-emerald-100" : "bg-slate-100 border border-slate-200"}`}>
-                    <Text className={`text-[10px] font-black ${hasAccess ? "text-emerald-700" : "text-slate-500"}`}>
-                      {hasAccess ? "ALLOWED" : "DENIED"}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-          <View className="mt-3 pt-3 border-t border-slate-100">
-            <Text className="text-slate-400 text-[10px]">
-              Permissions are controlled by your admin from the STOREMANAGE desktop application.
-            </Text>
+          <View className="flex-row items-center justify-between py-1">
+            <View className="flex-row items-center gap-3">
+              <Text className="text-base">📊</Text>
+              <Text className="text-slate-600 text-sm font-medium">View Reports</Text>
+            </View>
+            <Button
+              label="Open"
+              variant="secondary"
+              size="sm"
+              onPress={() => router.push("/reports")}
+            />
           </View>
         </GlassCard>
 
-        {/* ── App info ─────────────────────────────────────────────────────── */}
-        <GlassCard className="mb-4">
-          <Text className="text-slate-500 text-[10px] font-black uppercase tracking-widest mb-3">
-            Application
-          </Text>
-          {[
-            { label: "App Name",    value: "Storeman Mobile" },
-            { label: "Version",     value: "1.0.0 (API Sync)" },
-            { label: "Backend",     value: "STOREMANAGE (Laravel)" },
-            { label: "Mode",        value: "Live Sync Connected" },
-          ].map((row, i, arr) => (
-            <View
-              key={row.label}
-              className={`flex-row justify-between py-2.5 ${i < arr.length - 1 ? "border-b border-slate-100" : ""}`}
-            >
-              <Text className="text-slate-500 text-sm">{row.label}</Text>
-              <Text className="text-slate-700 font-semibold text-sm">{row.value}</Text>
-            </View>
-          ))}
-        </GlassCard>
+
 
         {/* ── Bluetooth Printers ─────────────────────────────────────────────── */}
         <GlassCard className="mb-4">

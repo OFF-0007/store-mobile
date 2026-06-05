@@ -2,26 +2,8 @@
  * Cart store – manages POS cart state in memory.
  */
 import { create } from "zustand";
-import type { CartItem, Product, ProductVariant } from "@/types/models";
 
-interface CartState {
-  items: CartItem[];
-  discount: number; // flat discount in currency units
-
-  // Computed
-  subtotal: () => number;
-  total: () => number;
-  itemCount: () => number;
-
-  // Actions
-  addItem: (product: Product, variant?: ProductVariant | null) => void;
-  removeItem: (productId: number, variantId?: number) => void;
-  updateQuantity: (productId: number, quantity: number, variantId?: number) => void;
-  setDiscount: (amount: number) => void;
-  clearCart: () => void;
-}
-
-export const useCartStore = create<CartState>((set, get) => ({
+export const useCartStore = create((set, get) => ({
   items: [],
   discount: 0,
 
@@ -48,7 +30,7 @@ export const useCartStore = create<CartState>((set, get) => ({
           ),
         };
       }
-      const newItem: CartItem = {
+      const newItem = {
         product,
         variant,
         quantity: 1,

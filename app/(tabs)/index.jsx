@@ -3,15 +3,17 @@
  * Light mode theme: clean layout with slate-50 background, white cards,
  * clear typography, and vibrant green/orange status accents.
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ScrollView,
   Text,
   TouchableOpacity,
   View,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useFocusEffect } from "expo-router";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuthStore } from "@/store/authStore";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard } from "@/components/ui";
@@ -133,14 +135,12 @@ function Badge({ status }) {
     (status ?? "").toLowerCase() === "completed";
   return (
     <View
-      className={`px-2 py-0.5 rounded-full ${
-        isPaid ? "bg-emerald-50" : "bg-orange-50"
-      }`}
+      className={`px-2 py-0.5 rounded-full ${isPaid ? "bg-emerald-50" : "bg-orange-50"
+        }`}
     >
       <Text
-        className={`text-[10px] font-black uppercase tracking-tight ${
-          isPaid ? "text-emerald-700" : "text-orange-700"
-        }`}
+        className={`text-[10px] font-black uppercase tracking-tight ${isPaid ? "text-emerald-700" : "text-orange-700"
+          }`}
       >
         {status}
       </Text>
@@ -152,61 +152,99 @@ function Badge({ status }) {
 const PERIODS = ["daily", "weekly", "monthly"];
 
 export default function HomeScreen() {
+  const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const getDashboardMetrics = useMockStore((s) => s.getDashboardMetrics);
   const fetchDashboardMetrics = useMockStore((s) => s.fetchDashboardMetrics);
 
   const [period, setPeriod] = useState("daily");
   const [refreshing, setRefreshing] = useState(false);
+  const [showLowStockAlert, setShowLowStockAlert] = useState(true);
 
-  useEffect(() => {
+  const onRefresh = useCallback(() => {
     setRefreshing(true);
     fetchDashboardMetrics(period).finally(() => setRefreshing(false));
   }, [period]);
 
+  useFocusEffect(
+    useCallback(() => {
+      onRefresh();
+    }, [onRefresh])
+  );
+
   const metrics = getDashboardMetrics(period);
 
+  useEffect(() => {
+    if (metrics.lowStockProducts.length > 0) {
+      setShowLowStockAlert(true);
+      const timer = setTimeout(() => {
+        setShowLowStockAlert(false);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [metrics.lowStockProducts.length]);
+
   const periodLabel = {
-    daily:   { sales: "Revenue Today",     purchases: "Purchases Today",   expenses: "Expenses Today" },
-    weekly:  { sales: "Revenue This Week", purchases: "Purchases This Wk", expenses: "Expenses This Wk" },
-    monthly: { sales: "Monthly Revenue",   purchases: "Total Purchases",   expenses: "Total Expenses" },
+    daily: { sales: "Revenue Today", purchases: "Purchases Today", expenses: "Expenses Today" },
+    weekly: { sales: "Revenue This Week", purchases: "Purchases This Wk", expenses: "Expenses This Wk" },
+    monthly: { sales: "Monthly Revenue", purchases: "Total Purchases", expenses: "Total Expenses" },
   }[period];
 
   const trendLabel = {
-    daily:   "Daily Activity (Last 7 Days)",
-    weekly:  "Weekly Activity (Last 4 Weeks)",
+    daily: "Daily Activity (Last 7 Days)",
+    weekly: "Weekly Activity (Last 4 Weeks)",
     monthly: "Monthly Activity (Last 6 Months)",
   }[period];
 
   const periodButtonLabel = { daily: "Day", weekly: "Week", monthly: "Month" };
+  const insets = useSafeAreaInsets();
 
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
-      <ScrollView
-        className="flex-1"
-        contentContainerClassName="px-4 py-5 pb-12"
-        showsVerticalScrollIndicator={false}
-      >
-        {/* ── Header ──────────────────────────────────────────────────────── */}
-        <View className="flex-row justify-between items-center mb-4">
-          <View>
-            <Text className="text-slate-500 text-xs font-bold uppercase tracking-wider">
-              Operations Dashboard
-            </Text>
-            <Text className="text-slate-800 text-xl font-black tracking-tight mt-0.5">
-              Good day, {user?.name?.split(" ")[0] ?? "Manager"} 👋
-            </Text>
-          </View>
-          <View className="bg-primary-50 px-3 py-1 rounded-full border border-primary-100">
-            <Text className="text-primary-700 text-[10px] font-black uppercase tracking-wider">
-              {user?.role ?? "Staff"}
-            </Text>
-          </View>
+    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+      {/* Orange header */}
+      <View style={{
+        backgroundColor: '#f97316', 
+        paddingTop: insets.top + 0,
+        paddingBottom: 10,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      }}>
+        <View style={{ minWidth: 44 }} />
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            🏪 StoreManage
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            Dashboard Overview
+          </Text>
         </View>
 
+        <View style={{ minWidth: 44 }} />
+      </View>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 0, paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#033600ff" />
+        }
+      >
+
+
         {/* ── Low Stock Alert ──────────────────────────────────────────────── */}
-        {metrics.lowStockProducts.length > 0 && (
-          <View className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+        {(showLowStockAlert && metrics.lowStockProducts.length > 0) && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: "/inventory", params: { lowStock: "true" } })}
+            className="mb-4 bg-amber-50 border border-amber-200 rounded-2xl p-4"
+          >
             <Text className="text-amber-800 font-black text-xs uppercase tracking-wider mb-1">
               ⚠️  Critical Stock Warning
             </Text>
@@ -227,36 +265,21 @@ export default function HomeScreen() {
                 </View>
               ))}
             </ScrollView>
-          </View>
+          </TouchableOpacity>
         )}
 
         {/* ── Period Selector ──────────────────────────────────────────────── */}
-        <View className="flex-row justify-between items-center mb-4">
-          <View>
-            <Text className="text-slate-800 font-black text-sm uppercase tracking-tight">
+        <View className="flex-row justify-between items-center mb-0">
+          <View className="mt-0">
+            <Text className="text-slate-800 font-black text-sm uppercase tracking-tight mt-5">
               Overview
             </Text>
-            <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider">
-              Showing data for this {period}
+            <Text className="text-primary-700 text-[10px] font-black uppercase tracking-wider">
+              {user?.role ?? "Staff"}
             </Text>
+
           </View>
-          <View className="flex-row bg-slate-200/60 rounded-xl p-0.5 border border-slate-200">
-            {PERIODS.map((p) => (
-              <TouchableOpacity
-                key={p}
-                onPress={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg ${period === p ? "bg-white shadow-sm" : ""}`}
-              >
-                <Text
-                  className={`text-[10px] font-black uppercase tracking-wider ${
-                    period === p ? "text-primary-600" : "text-slate-500"
-                  }`}
-                >
-                  {periodButtonLabel[p]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+
         </View>
 
         {/* ── Stat Cards Grid ──────────────────────────────────────────────── */}
@@ -312,9 +335,7 @@ export default function HomeScreen() {
           <Text className="text-slate-800 font-black text-sm uppercase tracking-tight mb-0.5">
             Performance Trends
           </Text>
-          <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-4">
-            {trendLabel}
-          </Text>
+
           <View className="flex-row gap-4 mb-3">
             <View className="flex-row items-center gap-1.5">
               <View className="w-2.5 h-2.5 rounded-sm bg-emerald-500" />
@@ -333,19 +354,6 @@ export default function HomeScreen() {
             <BarChart data={metrics.analytics} />
           )}
         </GlassCard>
-
-        {/* ── Operations Mix ───────────────────────────────────────────────── */}
-        <GlassCard className="mb-4 shadow-sm">
-          <Text className="text-slate-800 font-black text-sm uppercase tracking-tight mb-0.5">
-            Operations Mix
-          </Text>
-          <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-4">
-            Revenue vs Costs
-          </Text>
-          <OperationsMix breakdown={metrics.totalBreakdown} />
-        </GlassCard>
-
-        {/* ── Recent Sales ─────────────────────────────────────────────────── */}
         <GlassCard className="mb-4 shadow-sm">
           <Text className="text-slate-800 font-black text-sm uppercase tracking-tight mb-4">
             Recent Sales Activity
@@ -369,9 +377,8 @@ export default function HomeScreen() {
             metrics.recentSales.map((sale, i) => (
               <View
                 key={sale.id}
-                className={`flex-row items-center py-3 ${
-                  i < metrics.recentSales.length - 1 ? "border-b border-slate-100" : ""
-                }`}
+                className={`flex-row items-center py-3 ${i < metrics.recentSales.length - 1 ? "border-b border-slate-100" : ""
+                  }`}
               >
                 <View className="flex-1">
                   <Text className="text-slate-700 text-xs font-bold" numberOfLines={1}>
@@ -414,9 +421,8 @@ export default function HomeScreen() {
             metrics.recentPurchases.map((pur, i) => (
               <View
                 key={pur.id}
-                className={`flex-row items-center py-3 ${
-                  i < metrics.recentPurchases.length - 1 ? "border-b border-slate-100" : ""
-                }`}
+                className={`flex-row items-center py-3 ${i < metrics.recentPurchases.length - 1 ? "border-b border-slate-100" : ""
+                  }`}
               >
                 <View className="flex-1">
                   <Text className="text-slate-700 text-xs font-bold" numberOfLines={1}>

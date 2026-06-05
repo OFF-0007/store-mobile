@@ -2,7 +2,7 @@
  * Login screen – light-themed modern design with email/password form.
  * Calls the Laravel /api/login endpoint via the auth store.
  */
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -17,6 +17,7 @@ import { Button, GlassCard, Input } from "@/components/ui";
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuthStore();
+  const scrollViewRef = useRef(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -55,11 +56,13 @@ export default function LoginScreen() {
       className="flex-1"
     >
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior="padding"
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 40}
         className="flex-1"
       >
         <ScrollView
-          contentContainerClassName="flex-grow justify-center px-6 py-12"
+          ref={scrollViewRef}
+          contentContainerClassName="flex-grow justify-center px-6 pt-12 pb-32"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -102,6 +105,11 @@ export default function LoginScreen() {
               secureTextEntry={!showPassword}
               autoComplete="password"
               error={errors.password}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 150);
+              }}
               leftIcon={<Text className="text-slate-400">🔒</Text>}
               rightIcon={
                 <Text className="text-slate-500 text-sm font-semibold">

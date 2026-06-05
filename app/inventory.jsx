@@ -13,10 +13,12 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard } from "@/components/ui";
 
@@ -27,6 +29,8 @@ const fmt = (val) =>
   })}`;
 
 export default function StockScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
   const { products, categories, addProduct, deleteProduct, adjustStock, fetchProducts } =
     useMockStore();
 
@@ -34,22 +38,22 @@ export default function StockScreen() {
     fetchProducts();
   }, []);
 
-  const [search, setSearch]               = useState("");
-  const [selectedCat, setSelectedCat]     = useState("All");
-  const [onlyLowStock, setOnlyLowStock]   = useState(false);
-  const [showAddForm, setShowAddForm]      = useState(false);
+  const [search, setSearch] = useState("");
+  const [selectedCat, setSelectedCat] = useState("All");
+  const [onlyLowStock, setOnlyLowStock] = useState(params.lowStock === "true");
+  const [showAddForm, setShowAddForm] = useState(false);
   const [detailProduct, setDetailProduct] = useState(null);
 
   // ── Add form state ─────────────────────────────────────────────────────────
-  const [fname, setFname]           = useState("");
-  const [fsku, setFsku]             = useState("");
-  const [fbarcode, setFbarcode]     = useState("");
-  const [fcategory, setFcategory]   = useState("");
-  const [fprice, setFprice]         = useState("");
-  const [fcost, setFcost]           = useState("");
-  const [fstock, setFstock]         = useState("");
+  const [fname, setFname] = useState("");
+  const [fsku, setFsku] = useState("");
+  const [fbarcode, setFbarcode] = useState("");
+  const [fcategory, setFcategory] = useState("");
+  const [fprice, setFprice] = useState("");
+  const [fcost, setFcost] = useState("");
+  const [fstock, setFstock] = useState("");
   const [fthreshold, setFthreshold] = useState("5");
-  const [errors, setErrors]         = useState({});
+  const [errors, setErrors] = useState({});
 
   // ── Filtered list ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -59,8 +63,8 @@ export default function StockScreen() {
         p.name.toLowerCase().includes(q) ||
         p.sku.toLowerCase().includes(q) ||
         (p.barcode ?? "").includes(q);
-      const matchCat   = selectedCat === "All" || p.category === selectedCat;
-      const matchLow   = !onlyLowStock || p.stock <= (p.low_stock_threshold ?? 5);
+      const matchCat = selectedCat === "All" || p.category === selectedCat;
+      const matchLow = !onlyLowStock || p.stock <= (p.low_stock_threshold ?? 5);
       return matchSearch && matchCat && matchLow;
     });
   }, [products, search, selectedCat, onlyLowStock]);
@@ -72,25 +76,25 @@ export default function StockScreen() {
   // ── Handlers ───────────────────────────────────────────────────────────────
   function handleSave() {
     const errs = {};
-    if (!fname.trim())              errs.name  = "Name is required";
-    if (!fsku.trim())               errs.sku   = "SKU is required";
-    if (!fprice || isNaN(+fprice))  errs.price = "Enter a valid price";
-    if (!fstock || isNaN(+fstock))  errs.stock = "Enter a valid stock qty";
+    if (!fname.trim()) errs.name = "Name is required";
+    if (!fsku.trim()) errs.sku = "SKU is required";
+    if (!fprice || isNaN(+fprice)) errs.price = "Enter a valid price";
+    if (!fstock || isNaN(+fstock)) errs.stock = "Enter a valid stock qty";
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
     }
 
     addProduct({
-      name:                fname,
-      sku:                 fsku,
-      barcode:             fbarcode || null,
-      category:            fcategory || "General",
-      price:               Number(fprice),
-      cost:                fcost ? Number(fcost) : undefined,
-      stock:               parseInt(fstock, 10),
+      name: fname,
+      sku: fsku,
+      barcode: fbarcode || null,
+      category: fcategory || "General",
+      price: Number(fprice),
+      cost: fcost ? Number(fcost) : undefined,
+      stock: parseInt(fstock, 10),
       low_stock_threshold: parseInt(fthreshold, 10) || 5,
-      image:               null,
+      image: null,
     });
 
     setFname(""); setFsku(""); setFbarcode(""); setFcategory("");
@@ -107,23 +111,62 @@ export default function StockScreen() {
     ]);
   }
 
+  const insets = useSafeAreaInsets();
+
   return (
-    <SafeAreaView className="flex-1 bg-slate-50" edges={["top"]}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
+      {/* Orange header with back button */}
+      <View style={{
+        backgroundColor: '#f97316',
+        paddingTop: insets.top + 8,
+        paddingBottom: 10,
+        paddingHorizontal: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+      }}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            paddingHorizontal: 10,
+            paddingVertical: 6,
+            borderRadius: 20,
+            minWidth: 44,
+          }}
+        >
+          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
+          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+        </TouchableOpacity>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            📦 Inventory
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            {products.length} products · {lowCount} low stock
+          </Text>
+        </View>
+
+        {/* Spacer to balance the back button */}
+        <View style={{ minWidth: 44 }} />
+      </View>
+
+      <KeyboardAwareScrollView
         className="flex-1"
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
+        keyboardShouldPersistTaps="handled"
+        enableOnAndroid={true}
+        extraScrollHeight={20}
       >
-        <ScrollView className="flex-1 px-4 py-4" keyboardShouldPersistTaps="handled">
-          
-          {/* Header */}
-          <View className="mb-4">
-            <Text className="text-slate-800 text-2xl font-black tracking-tight uppercase">
-              Inventory Management
-            </Text>
-            <Text className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-              {products.length} products · {lowCount} low stock alerts
-            </Text>
-          </View>
 
           {/* Add New Product Section */}
           <GlassCard className="mb-4 p-4">
@@ -152,9 +195,8 @@ export default function StockScreen() {
                     onChangeText={setFname}
                     placeholder="e.g. Basmati Rice 5kg"
                     placeholderTextColor="#94a3b8"
-                    className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${
-                      errors.name ? "border-rose-300" : "border-slate-200"
-                    }`}
+                    className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.name ? "border-rose-300" : "border-slate-200"
+                      }`}
                   />
                   {errors.name && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.name}</Text>}
                 </View>
@@ -169,9 +211,8 @@ export default function StockScreen() {
                       onChangeText={setFsku}
                       placeholder="GRN-RICE-5K"
                       placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${
-                        errors.sku ? "border-rose-300" : "border-slate-200"
-                      }`}
+                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.sku ? "border-rose-300" : "border-slate-200"
+                        }`}
                     />
                     {errors.sku && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.sku}</Text>}
                   </View>
@@ -212,9 +253,8 @@ export default function StockScreen() {
                       keyboardType="numeric"
                       placeholder="0.00"
                       placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${
-                        errors.price ? "border-rose-300" : "border-slate-200"
-                      }`}
+                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.price ? "border-rose-300" : "border-slate-200"
+                        }`}
                     />
                     {errors.price && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.price}</Text>}
                   </View>
@@ -244,9 +284,8 @@ export default function StockScreen() {
                       keyboardType="numeric"
                       placeholder="0"
                       placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${
-                        errors.stock ? "border-rose-300" : "border-slate-200"
-                      }`}
+                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.stock ? "border-rose-300" : "border-slate-200"
+                        }`}
                     />
                     {errors.stock && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.stock}</Text>}
                   </View>
@@ -296,7 +335,7 @@ export default function StockScreen() {
             <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
               2. Search & Filter Products
             </Text>
-            
+
             <View className="gap-3">
               {/* Search Input */}
               <View className="flex-row items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
@@ -325,15 +364,13 @@ export default function StockScreen() {
                   <TouchableOpacity
                     key={cat}
                     onPress={() => setSelectedCat(cat)}
-                    className={`mr-2 px-3 py-1.5 rounded-full border ${
-                      selectedCat === cat
+                    className={`mr-2 px-3 py-1.5 rounded-full border ${selectedCat === cat
                         ? "bg-orange-500 border-orange-500 shadow-sm"
                         : "bg-white border-slate-200"
-                    }`}
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wide ${
-                      selectedCat === cat ? "text-white" : "text-slate-600"
-                    }`}>{cat}</Text>
+                    <Text className={`text-[10px] font-black uppercase tracking-wide ${selectedCat === cat ? "text-white" : "text-slate-600"
+                      }`}>{cat}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -341,17 +378,15 @@ export default function StockScreen() {
               {/* Low stock toggle */}
               <TouchableOpacity
                 onPress={() => setOnlyLowStock(!onlyLowStock)}
-                className={`self-start flex-row items-center px-3 py-1.5 rounded-full border gap-1.5 ${
-                  onlyLowStock
+                className={`self-start flex-row items-center px-3 py-1.5 rounded-full border gap-1.5 ${onlyLowStock
                     ? "bg-amber-50 border-amber-300"
                     : "bg-slate-100 border-slate-200"
-                }`}
+                  }`}
               >
                 <Text className="text-sm">⚠️</Text>
                 <Text
-                  className={`text-[10px] font-black uppercase tracking-wide ${
-                    onlyLowStock ? "text-amber-800" : "text-slate-500"
-                  }`}
+                  className={`text-[10px] font-black uppercase tracking-wide ${onlyLowStock ? "text-amber-800" : "text-slate-500"
+                    }`}
                 >
                   {onlyLowStock
                     ? `Low Stock Only (${lowCount})`
@@ -432,13 +467,12 @@ export default function StockScreen() {
                           {/* Right: stock + controls */}
                           <View className="items-end gap-1.5">
                             <Text
-                              className={`text-xs font-black ${
-                                isOut
+                              className={`text-xs font-black ${isOut
                                   ? "text-rose-600"
                                   : isLow
-                                  ? "text-amber-600"
-                                  : "text-slate-700"
-                              }`}
+                                    ? "text-amber-600"
+                                    : "text-slate-700"
+                                }`}
                             >
                               {p.stock} {p.stock === 1 ? "unit" : "units"}
                             </Text>
@@ -465,9 +499,7 @@ export default function StockScreen() {
               </View>
             )}
           </GlassCard>
-
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScrollView>
 
       {/* Product Detail Modal */}
       <Modal
@@ -481,7 +513,7 @@ export default function StockScreen() {
             <View className="bg-white border-t border-slate-100 rounded-t-3xl px-5 pt-4 pb-10 shadow-xl max-h-[70%]">
               {/* Handle bar */}
               <View className="self-center w-10 h-1 bg-slate-200 rounded-full mb-4" />
-              
+
               <Text className="text-slate-800 font-black text-base mb-4 uppercase tracking-tight">
                 Product Details
               </Text>
@@ -504,18 +536,17 @@ export default function StockScreen() {
               </View>
 
               {[
-                { label: "Category",  value: detailProduct.category ?? "—" },
-                { label: "Barcode",   value: detailProduct.barcode ?? "—" },
-                { label: "Sell Price",value: fmt(detailProduct.price) },
-                { label: "Cost Price",value: detailProduct.cost ? fmt(detailProduct.cost) : "—" },
-                { label: "Stock",     value: `${detailProduct.stock} units` },
+                { label: "Category", value: detailProduct.category ?? "—" },
+                { label: "Barcode", value: detailProduct.barcode ?? "—" },
+                { label: "Sell Price", value: fmt(detailProduct.price) },
+                { label: "Cost Price", value: detailProduct.cost ? fmt(detailProduct.cost) : "—" },
+                { label: "Stock", value: `${detailProduct.stock} units` },
                 { label: "Low Alert", value: `${detailProduct.low_stock_threshold ?? 5} units` },
               ].map((row, i, arr) => (
                 <View
                   key={row.label}
-                  className={`flex-row justify-between py-2.5 ${
-                    i < arr.length - 1 ? "border-b border-slate-100" : ""
-                  }`}
+                  className={`flex-row justify-between py-2.5 ${i < arr.length - 1 ? "border-b border-slate-100" : ""
+                    }`}
                 >
                   <Text className="text-slate-500 text-xs font-black uppercase tracking-wider">{row.label}</Text>
                   <Text className="text-slate-800 font-semibold text-xs font-bold">

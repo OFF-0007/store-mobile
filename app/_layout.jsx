@@ -41,7 +41,13 @@ export default function RootLayout() {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="inventory" options={{ headerShown: false }} />
-        <Stack.Screen name="reports" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/sales" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/purchases" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/expenses" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/customers" options={{ headerShown: false }} />
+        <Stack.Screen name="reports/suppliers" options={{ headerShown: false }} />
+        <Stack.Screen name="returns/purchase" options={{ headerShown: false }} />
+        <Stack.Screen name="returns/sales" options={{ headerShown: false }} />
         <Stack.Screen name="purchase-return" options={{ headerShown: false }} />
         <Stack.Screen name="sales-return" options={{ headerShown: false }} />
       </Stack>

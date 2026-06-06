@@ -259,7 +259,7 @@ export default function HomeScreen() {
         <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-slate-800 font-black text-base">Recent Sales</Text>
-            <TouchableOpacity onPress={() => router.push("/reports")}>
+            <TouchableOpacity onPress={() => router.push("/reports/sales")}>
               <Text className="text-orange-500 font-bold text-xs">View All</Text>
             </TouchableOpacity>
           </View>
@@ -301,7 +301,7 @@ export default function HomeScreen() {
         <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
           <View className="flex-row items-center justify-between mb-4">
             <Text className="text-slate-800 font-black text-base">Recent Procurements</Text>
-            <TouchableOpacity onPress={() => router.push("/reports")}>
+            <TouchableOpacity onPress={() => router.push("/reports/purchases")}>
               <Text className="text-orange-500 font-bold text-xs">View All</Text>
             </TouchableOpacity>
           </View>
@@ -356,7 +356,7 @@ export default function HomeScreen() {
           <View className="items-end mb-4">
             <TouchableOpacity
               className="flex-row items-center mb-4"
-              onPress={() => { setIsFabOpen(false); router.push("/reports"); }}
+              onPress={() => { setIsFabOpen(false); router.push("/(tabs)/reports"); }}
             >
               <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Reports</Text>
               <View className="w-12 h-12 bg-indigo-500 rounded-full items-center justify-center shadow-md elevation-3">

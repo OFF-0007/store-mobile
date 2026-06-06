@@ -26,13 +26,11 @@ import { Ionicons } from "@expo/vector-icons";
 // Safely require native expo modules to prevent crash when native binaries aren't rebuilt yet
 let FileSystem = null;
 let Sharing = null;
-let Print = null;
 try {
   FileSystem = require("expo-file-system");
   Sharing = require("expo-sharing");
-  Print = require("expo-print");
 } catch (e) {
-  console.warn("Expo sharing/file-system/print native modules not compiled in dev build:", e.message);
+  console.warn("Expo sharing/file-system native modules not compiled in dev build:", e.message);
 }
 
 // ── Currency formatter ────────────────────────────────────────────────────────
@@ -92,7 +90,9 @@ function Badge({ status }) {
 
 // ── Sub-Report: Sales ─────────────────────────────────────────────────────────
 function SalesReport({ data }) {
-  const { summary, sales } = data;
+  if (!data) return <Text className="text-slate-400 text-center py-4">No data available</Text>;
+  
+  const { summary = {}, sales = [] } = data;
   return (
     <>
       <View className="flex-row gap-2 mb-4">
@@ -138,7 +138,9 @@ function SalesReport({ data }) {
 
 // ── Sub-Report: Customers ─────────────────────────────────────────────────────
 function CustomerReport({ data, onPayBalance }) {
-  const { summary, customers } = data;
+  if (!data) return <Text className="text-slate-400 text-center py-4">No data available</Text>;
+  
+  const { summary = {}, customers = [] } = data;
   return (
     <>
       <View className="flex-row gap-2 mb-4">
@@ -194,7 +196,9 @@ function CustomerReport({ data, onPayBalance }) {
 
 // ── Sub-Report: Suppliers ─────────────────────────────────────────────────────
 function SupplierReport({ data, onPayBalance, onReceiveRefund }) {
-  const { summary, suppliers } = data;
+  if (!data) return <Text className="text-slate-400 text-center py-4">No data available</Text>;
+  
+  const { summary = {}, suppliers = [] } = data;
   return (
     <>
       <View className="flex-row gap-2 mb-4">
@@ -266,7 +270,9 @@ function SupplierReport({ data, onPayBalance, onReceiveRefund }) {
 
 // ── Sub-Report: Purchases ─────────────────────────────────────────────────────
 function PurchaseReport({ data }) {
-  const { summary, purchases } = data;
+  if (!data) return <Text className="text-slate-400 text-center py-4">No data available</Text>;
+  
+  const { summary = {}, purchases = [] } = data;
   return (
     <>
       <View className="flex-row gap-2 mb-4">
@@ -308,7 +314,9 @@ function PurchaseReport({ data }) {
 
 // ── Sub-Report: Expenses ──────────────────────────────────────────────────────
 function ExpenseReport({ data }) {
-  const { summary, expenses } = data;
+  if (!data) return <Text className="text-slate-400 text-center py-4">No data available</Text>;
+  
+  const { summary = {}, expenses = [] } = data;
   return (
     <>
       <View className="flex-row gap-2 mb-4">
@@ -508,20 +516,25 @@ export default function ReportsScreen() {
 
   const fetchReport = useCallback(
     async (tabKey, loadMore = false) => {
-      const tab = TABS.find((t) => t.key === tabKey);
-      if (!tab) return;
-
-      const currentPagination = paginationRef.current[tabKey] || { offset: 0, limit: 6 };
-      const offset = loadMore ? currentPagination.offset + currentPagination.limit : 0;
-
-      if (loadMore) {
-        setLoadingMore(true);
-      } else {
-        setLoading(true);
-        setError(null);
-      }
-
       try {
+        const tab = TABS.find((t) => t.key === tabKey);
+        if (!tab) {
+          console.warn(`Tab not found for key: ${tabKey}`);
+          return;
+        }
+
+        const currentPagination = paginationRef.current[tabKey] || { offset: 0, limit: 6 };
+        const offset = loadMore ? currentPagination.offset + currentPagination.limit : 0;
+
+        if (loadMore) {
+          setLoadingMore(true);
+        } else {
+          setLoading(true);
+          setError(null);
+        }
+
+        console.log(`Fetching ${tabKey} from ${tab.endpoint}`);
+
         const res = await apiClient.get(tab.endpoint, {
           params: {
             limit: 6,
@@ -531,27 +544,52 @@ export default function ReportsScreen() {
           }
         });
 
+        console.log(`Received data for ${tabKey}:`, res.data);
+
         const newDataKey = tabKey === 'customer' ? 'customers' : tabKey === 'supplier' ? 'suppliers' : tabKey === 'purchase' ? 'purchases' : tabKey === 'sale' ? 'sales' : 'expenses';
+
+        // Ensure data structure is valid
+        const dataToStore = {
+          summary: res.data?.summary || {},
+          [newDataKey]: res.data?.[newDataKey] || [],
+          pagination: res.data?.pagination || { offset, limit: 6, total: 0, has_more: false }
+        };
 
         if (loadMore) {
           setReportData((prev) => ({
             ...prev,
             [tabKey]: {
-              ...res.data,
-              [newDataKey]: [...(prev[tabKey]?.[newDataKey] || []), ...res.data[newDataKey]]
+              ...dataToStore,
+              [newDataKey]: [...(prev[tabKey]?.[newDataKey] || []), ...dataToStore[newDataKey]]
             }
           }));
         } else {
-          setReportData((prev) => ({ ...prev, [tabKey]: res.data }));
+          setReportData((prev) => ({ ...prev, [tabKey]: dataToStore }));
         }
 
         setPagination((prev) => ({
           ...prev,
-          [tabKey]: res.data.pagination || { offset, limit: 6, total: 0, has_more: false }
+          [tabKey]: dataToStore.pagination
         }));
       } catch (e) {
+        console.error(`Error fetching report:`, e);
         if (!loadMore) {
-          setError(e.message ?? "Failed to load report.");
+          const errorMessage = e?.response?.data?.message || e.message || "Failed to load report. Please try again.";
+          setError(errorMessage);
+          
+          // Set empty data structure to prevent crashes
+          setReportData((prev) => ({ 
+            ...prev, 
+            [tabKey]: { 
+              summary: {},
+              sales: [], 
+              purchases: [], 
+              expenses: [], 
+              customers: [], 
+              suppliers: [],
+              pagination: { offset: 0, limit: 6, total: 0, has_more: false }
+            } 
+          }));
         }
       } finally {
         if (loadMore) {
@@ -572,7 +610,7 @@ export default function ReportsScreen() {
       setPagination((prev) => ({ ...prev, [activeTab]: { offset: 0, limit: 6 } }));
       fetchReport(activeTab, false);
     }
-  }, [activeTab, isFocused]);
+  }, [activeTab, isFocused, fetchReport]);
 
   const handleApplyFilter = () => {
     setPagination((prev) => ({ ...prev, [activeTab]: { offset: 0, limit: 6 } }));
@@ -697,67 +735,6 @@ export default function ReportsScreen() {
     }
   }
 
-  async function exportToPDF(title, headers, rows) {
-    if (!Print || !Sharing) {
-      Alert.alert(
-        "Export Unavailable",
-        "The PDF printing modules are not compiled into this app build. Please rebuild the app binary."
-      );
-      return;
-    }
-    try {
-      let htmlContent = `
-        <html>
-          <head>
-            <style>
-              body { font-family: sans-serif; padding: 30px; color: #1e293b; }
-              h1 { color: #f97316; font-size: 24px; margin-bottom: 2px; text-transform: uppercase; font-weight: 900; letter-spacing: 0.5px; }
-              h2 { color: #64748b; font-size: 11px; margin-top: 0; margin-bottom: 25px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
-              table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-              th { background-color: #f8fafc; border-bottom: 3px solid #e2e8f0; padding: 12px 10px; text-align: left; font-size: 10px; font-weight: 900; text-transform: uppercase; color: #475569; letter-spacing: 0.5px; }
-              td { border-bottom: 1px solid #f1f5f9; padding: 12px 10px; font-size: 11px; color: #334155; font-weight: 500; }
-              tr:nth-child(even) { background-color: #f8fafc; }
-              .footer { margin-top: 50px; font-size: 9px; color: #94a3b8; text-align: center; font-weight: bold; border-top: 1px dashed #cbd5e1; padding-top: 15px; }
-            </style>
-          </head>
-          <body>
-            <h1>${title}</h1>
-            <h2>Generated on ${new Date().toLocaleDateString()}</h2>
-            <table>
-              <thead>
-                <tr>
-                  ${headers.map(h => `<th>${h}</th>`).join('')}
-                </tr>
-              </thead>
-              <tbody>
-                ${rows.map(row => `
-                  <tr>
-                    ${row.map(val => `<td>${val}</td>`).join('')}
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-            <div class="footer">STOREMAN MOBILE POS · SYSTEM STATEMENT</div>
-          </body>
-        </html>
-      `;
-
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'application/pdf',
-          dialogTitle: 'Export PDF Report',
-          UTI: 'com.adobe.pdf',
-        });
-      } else {
-        Alert.alert("Export Successful", `PDF report created at: ${uri}`);
-      }
-    } catch (e) {
-      Alert.alert("Export Failed", e.message);
-    }
-  }
-
   async function handleExport(format) {
     const tab = TABS.find((t) => t.key === activeTab);
     const records = reportData[activeTab];
@@ -828,8 +805,6 @@ export default function ReportsScreen() {
 
     if (format === 'csv') {
       await exportToCSV(`${activeTab}_report.csv`, headers, rows);
-    } else {
-      await exportToPDF(title, headers, rows);
     }
   }
 
@@ -867,7 +842,18 @@ export default function ReportsScreen() {
         shadowRadius: 6,
       }}>
         <TouchableOpacity
-          onPress={() => router.back()}
+          onPress={() => {
+            try {
+              if (router.canGoBack?.()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)');
+              }
+            } catch (e) {
+              console.log('Navigation error:', e);
+              router.replace('/(tabs)');
+            }
+          }}
           activeOpacity={0.7}
           style={{
             alignItems: 'center',
@@ -999,13 +985,6 @@ export default function ReportsScreen() {
               <Ionicons name="document-text-outline" size={13} color="#059669" />
               <Text className="text-emerald-700 text-[9px] font-black uppercase tracking-wider">Excel/CSV</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => handleExport('pdf')}
-              className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 flex-row items-center gap-1.5 shadow-sm"
-            >
-              <Ionicons name="print-outline" size={13} color="#dc2626" />
-              <Text className="text-rose-700 text-[9px] font-black uppercase tracking-wider">Print PDF</Text>
-            </TouchableOpacity>
           </View>
         </View>
       )}
@@ -1049,13 +1028,21 @@ export default function ReportsScreen() {
               <Text className="text-white text-xs font-black uppercase tracking-wider">Retry</Text>
             </TouchableOpacity>
           </View>
-        ) : data ? (
+        ) : data && Object.keys(data).length > 0 ? (
           <>
-            {activeTab === "sale" && <SalesReport data={data} />}
-            {activeTab === "purchase" && <PurchaseReport data={data} />}
-            {activeTab === "expense" && <ExpenseReport data={data} />}
-            {activeTab === "customer" && <CustomerReport data={data} onPayBalance={handlePayBalance} />}
-            {activeTab === "supplier" && <SupplierReport data={data} onPayBalance={handlePayBalance} onReceiveRefund={handleReceiveRefund} />}
+            {activeTab === "sale" && data?.summary && <SalesReport data={data} />}
+            {activeTab === "purchase" && data?.summary && <PurchaseReport data={data} />}
+            {activeTab === "expense" && data?.summary && <ExpenseReport data={data} />}
+            {activeTab === "customer" && data?.summary && <CustomerReport data={data} onPayBalance={handlePayBalance} />}
+            {activeTab === "supplier" && data?.summary && <SupplierReport data={data} onPayBalance={handlePayBalance} onReceiveRefund={handleReceiveRefund} />}
+
+            {!data?.summary && (
+              <View className="items-center justify-center py-20">
+                <Ionicons name="alert-circle-outline" size={40} color="#94a3b8" />
+                <Text className="text-slate-700 font-black text-sm text-center mt-3 uppercase tracking-wider">No data available</Text>
+                <Text className="text-slate-400 text-xs text-center mt-1 px-8">This report category has no records yet</Text>
+              </View>
+            )}
 
             {currentPagination.has_more && (
               <View className="py-6 items-center gap-1.5">

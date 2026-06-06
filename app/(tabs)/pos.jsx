@@ -24,6 +24,7 @@ import { useRouter } from "expo-router";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard, SkeletonLoader } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
+import apiClient from "@/lib/api/client";
 import { Ionicons } from "@expo/vector-icons";
 
 // Safely require expo-camera to prevent crash when native modules aren't compiled yet
@@ -79,12 +80,17 @@ export default function POSScreen() {
   useEffect(() => {
     fetchProducts();
     fetchCustomers();
+    apiClient.get('/store').then(res => {
+      if (res.data && res.data.name) setStoreName(res.data.name);
+    }).catch(() => {});
   }, []);
 
   // ── States ─────────────────────────────────────────────────────────────────
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [isSearchingInvoice, setIsSearchingInvoice] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [customerName, setCustomerName] = useState("");
@@ -117,6 +123,7 @@ export default function POSScreen() {
   const [scanQuantity, setScanQuantity] = useState("1");
   const [isTorchOn, setIsTorchOn] = useState(false);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [storeName, setStoreName] = useState("");
 
   // ── Customer Suggestions ───────────────────────────────────────────────────
   const filteredCustomers = useMemo(() => {
@@ -142,6 +149,28 @@ export default function POSScreen() {
     setSelectedCustomerId(null);
     setCustomerName(text);
     setShowCustomerSuggestions(true);
+  };
+
+  const handleSearchInvoice = async () => {
+    if (!invoiceSearchQuery.trim()) return;
+    setIsSearchingInvoice(true);
+    try {
+      const res = await apiClient.get(`/sales/${invoiceSearchQuery.trim()}`);
+      const sale = res.data;
+      if (sale) {
+        setCompletedSale({
+          ...sale,
+          store_name: storeName, // Include store name
+          customer_display_name: sale.customer?.name || "Walk-in Customer",
+        });
+        setIsSuccessOpen(true);
+      }
+    } catch (e) {
+      Alert.alert("Invoice Not Found", e.message);
+    } finally {
+      setIsSearchingInvoice(false);
+      setInvoiceSearchQuery("");
+    }
   };
 
   // ── Product Suggestions & Search ───────────────────────────────────────────
@@ -359,6 +388,7 @@ export default function POSScreen() {
 
     const preparedItems = itemsWithTotals.map((item) => ({
       product_id: item.product_id,
+      name: item.name, // Include name for printing
       quantity: item.quantity,
       price: item.price,
       tax: item.tax_amount,
@@ -394,6 +424,7 @@ export default function POSScreen() {
           ...salePayload,
           reference: response.sale.reference,
           id: response.sale.id,
+          store_name: storeName, // Include store name for printing
           customer_display_name: selectedCustomerId
             ? (customers.find((c) => c.id === selectedCustomerId)?.name || "Client")
             : (customerName.trim() || "Walk-in Customer"),
@@ -531,9 +562,29 @@ export default function POSScreen() {
           }
         >
 
+          {/* Search by Invoice ID */}
+          <GlassCard className="mb-4 p-4">
+            <Text className="text-slate-800 font-black text-[10px] uppercase tracking-widest mb-3">Find & Re-print Invoice</Text>
+            <View className="flex-row gap-2">
+              <TextInput
+                value={invoiceSearchQuery}
+                onChangeText={setInvoiceSearchQuery}
+                placeholder="Enter Invoice ID (e.g. SALE-1)"
+                className="flex-1 bg-white border-2 border-slate-100 rounded-xl px-4 py-2.5 text-slate-800 text-xs font-bold"
+              />
+              <TouchableOpacity
+                onPress={handleSearchInvoice}
+                disabled={isSearchingInvoice}
+                className="bg-slate-800 px-5 rounded-xl items-center justify-center"
+              >
+                {isSearchingInvoice ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[10px] font-black uppercase">Find</Text>}
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+
           {/* Process Sales Return Banner */}
           <TouchableOpacity
-            onPress={() => router.push('/sales-return')}
+            onPress={() => router.push('/returns/sales')}
             activeOpacity={0.8}
             className="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between"
           >

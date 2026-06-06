@@ -22,6 +22,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard, SkeletonLoader } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
+import apiClient from "@/lib/api/client";
 // Safely require expo-camera to prevent crash when native modules aren't compiled yet
 let CameraView = null;
 let useCameraPermissions = () => [null, () => { }];
@@ -75,6 +76,9 @@ export default function PurchaseScreen() {
     fetchProducts();
     fetchSuppliers();
     fetchUnits();
+    apiClient.get('/store').then(res => {
+      if (res.data && res.data.name) setStoreName(res.data.name);
+    }).catch(() => {});
   }, []);
 
   // ── States ─────────────────────────────────────────────────────────────────
@@ -90,11 +94,14 @@ export default function PurchaseScreen() {
   const [paidAmount, setPaidAmount] = useState("");
   const [isPaidAmountEdited, setIsPaidAmountEdited] = useState(false);
   const [refNo, setRefNo] = useState("");
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState("");
+  const [isSearchingInvoice, setIsSearchingInvoice] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
 
   // Checkout Success Receipt Modal
   const [isSuccessOpen, setIsSuccessOpen] = useState(false);
   const [completedPurchase, setCompletedPurchase] = useState(null);
+  const [storeName, setStoreName] = useState("");
 
   // ── Scanner & Add Product States ───────────────────────────────────────────
   const [isScanning, setIsScanning] = useState(false);
@@ -137,6 +144,28 @@ export default function PurchaseScreen() {
     setSelectedSupplierId(null);
     setSupplierName(text);
     setShowSupplierSuggestions(true);
+  };
+
+  const handleSearchInvoice = async () => {
+    if (!invoiceSearchQuery.trim()) return;
+    setIsSearchingInvoice(true);
+    try {
+      const res = await apiClient.get(`/purchases/${invoiceSearchQuery.trim()}`);
+      const purchase = res.data;
+      if (purchase) {
+        setCompletedPurchase({
+          ...purchase,
+          store_name: storeName, // Include store name
+          supplier_display_name: purchase.supplier?.name || "Unknown",
+        });
+        setIsSuccessOpen(true);
+      }
+    } catch (e) {
+      Alert.alert("Purchase Not Found", e.message);
+    } finally {
+      setIsSearchingInvoice(false);
+      setInvoiceSearchQuery("");
+    }
   };
 
   // ── Product Suggestions & Search ───────────────────────────────────────────
@@ -387,6 +416,7 @@ export default function PurchaseScreen() {
 
     const preparedItems = itemsWithTotals.map((item) => ({
       product_id: item.product_id,
+      name: item.name, // Include name
       quantity: item.quantity,
       cost: item.cost,
       tax: item.tax_amount,
@@ -417,6 +447,7 @@ export default function PurchaseScreen() {
           ...purchasePayload,
           reference: response.purchase.reference,
           id: response.purchase.id,
+          store_name: storeName, // Include store name
           supplier_display_name: selectedSupplierId
             ? (suppliers.find((s) => s.id === selectedSupplierId)?.name || "Supplier")
             : (supplierName.trim() || "New Supplier"),
@@ -446,12 +477,8 @@ export default function PurchaseScreen() {
   const handlePrintReceipt = () => {
     if (completedPurchase) {
       printThermalReceipt({
+        ...completedPurchase,
         type: 'purchase',
-        reference: completedPurchase.reference,
-        supplier: completedPurchase.supplier_display_name,
-        items: completedPurchase.items,
-        total: completedPurchase.grand_total,
-        paid: completedPurchase.paid_amount,
         date: new Date().toLocaleString(),
       });
     }
@@ -515,6 +542,26 @@ export default function PurchaseScreen() {
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#f97316"]} />
           }
         >
+          {/* Search by Purchase ID */}
+          <GlassCard className="mb-4 p-4">
+            <Text className="text-slate-800 font-black text-[10px] uppercase tracking-widest mb-3">Find & Re-print Purchase Invoice</Text>
+            <View className="flex-row gap-2">
+              <TextInput
+                value={invoiceSearchQuery}
+                onChangeText={setInvoiceSearchQuery}
+                placeholder="Enter Purchase ID (e.g. PRCH-1)"
+                className="flex-1 bg-white border-2 border-slate-100 rounded-xl px-4 py-2.5 text-slate-800 text-xs font-bold"
+              />
+              <TouchableOpacity
+                onPress={handleSearchInvoice}
+                disabled={isSearchingInvoice}
+                className="bg-slate-800 px-5 rounded-xl items-center justify-center"
+              >
+                {isSearchingInvoice ? <ActivityIndicator size="small" color="#fff" /> : <Text className="text-white text-[10px] font-black uppercase">Find</Text>}
+              </TouchableOpacity>
+            </View>
+          </GlassCard>
+
           {/* Shortcuts Banner */}
           <View className="mb-4 flex-row gap-2">
             <TouchableOpacity
@@ -535,7 +582,7 @@ export default function PurchaseScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity
-              onPress={() => router.push('/purchase-return')}
+              onPress={() => router.push('/returns/purchase')}
               activeOpacity={0.8}
               className="flex-1 bg-white border border-slate-200 rounded-2xl p-3 flex-row items-center justify-between shadow-sm"
             >

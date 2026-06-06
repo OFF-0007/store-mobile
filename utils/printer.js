@@ -13,6 +13,8 @@ const ESC = {
   ALIGN_RIGHT: "\x1b\x61\x02",
   BOLD_ON: "\x1b\x45\x01",
   BOLD_OFF: "\x1b\x45\x00",
+  DOUBLE_STRIKE_ON: "\x1b\x47\x01",
+  DOUBLE_STRIKE_OFF: "\x1b\x47\x00",
   FONT_SIZE_LARGE: "\x1d\x21\x11",
   FONT_SIZE_NORMAL: "\x1d\x21\x00",
   FEED_2: "\x1b\x64\x02",
@@ -21,86 +23,125 @@ const ESC = {
 };
 
 /**
- * Format receipt text for 58mm printer (32 characters per line)
+ * Format receipt text for 58mm printer (approx 31 characters per line to avoid wrapping)
  */
 export function formatReceipt58mm(sale) {
   let commands = "";
   commands += ESC.RESET;
+  commands += ESC.DOUBLE_STRIKE_ON; // Make everything darker
+  commands += ESC.BOLD_ON; // Global bold for maximum darkness
 
-  // Title (Bold, Large, Center)
+  // --- HEADER SECTION ---
   commands += ESC.ALIGN_CENTER;
-  commands += ESC.BOLD_ON;
   commands += ESC.FONT_SIZE_LARGE;
-  commands += "STOREMAN POS\n";
+  // Use store name if provided, else default
+  commands += `${(sale.store_name || "STOREMAN POS").toUpperCase()}\n`;
   commands += ESC.FONT_SIZE_NORMAL;
-  commands += "F2 Mobile Printer Receipt\n";
-  commands += ESC.BOLD_OFF;
 
-  // Metadata
+  // Date & Time
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  commands += `${dateStr}  ${timeStr}\n\n`;
+
+  // --- TOKEN / REFERENCE SECTION ---
+  commands += "      - - - Token - - -       \n";
+  commands += ". . . . . . . . . . . . . . . \n";
+  commands += `  ${sale.reference || sale.id || "N/A"}  \n`;
+  commands += ". . . . . . . . . . . . . . . \n\n";
+
+  // --- DETAILS SECTION ---
   commands += ESC.ALIGN_LEFT;
-  commands += `Ref: ${sale.reference || "N/A"}\n`;
-  commands += `Date: ${sale.sale_date || sale.date || "N/A"}\n`;
-  commands += `Customer: ${sale.customer_display_name || sale.supplier || "Guest"}\n`;
+  const totalWidth = 30; // Reduced to 30 to prevent wrapping on 58mm
+  const leftCol = 12;
+  const rightCol = 18;
+
+  const printRow = (label, value) => {
+    return `${label.padEnd(leftCol)}${String(value).padStart(rightCol)}\n`;
+  };
+
+  const isPurchase = sale.type === 'purchase';
+  commands += printRow("Token Type", isPurchase ? "Purchase" : "Sales");
+  commands += "------------------------------\n";
+  
+  const entityLabel = isPurchase ? "Supplier Name" : "Customer Name";
+  const entityName = sale.customer_display_name || sale.supplier || (isPurchase ? "New Supplier" : "Walk-in Customer");
+  commands += printRow(entityLabel, entityName.length > rightCol ? entityName.substring(0, rightCol-3) + "..." : entityName);
+  
   if (sale.payment_method) {
-    commands += `Pay Mode: ${sale.payment_method} (${sale.payment_status || "paid"})\n`;
+    commands += printRow("Pay Mode", sale.payment_method);
   }
-  commands += "--------------------------------\n";
+  commands += "------------------------------\n\n";
 
-  // Column Headers
-  commands += ESC.BOLD_ON;
-  commands += "Item Name       Qty   Subtotal\n";
-  commands += ESC.BOLD_OFF;
-  commands += "--------------------------------\n";
+  // --- ITEMS LIST ---
+  commands += "ITEM NAME         QTY   AMOUNT\n";
+  commands += "------------------------------\n";
 
-  // Items list
   (sale.items || []).forEach((item) => {
-    const name = (item.name || "Item").toUpperCase();
-    if (name.length > 15) {
+    const name = (item.name || item.product_name || item.product?.name || "Item").toUpperCase();
+    const qty = `${item.quantity}`;
+    const amount = `₹${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
+
+    // Column widths: Name(17), Qty(3), Amount(10) = 30 total
+    if (name.length > 17) {
       commands += `${name}\n`;
-      const qtyStr = `${item.quantity}x`;
-      const priceStr = `₹${Math.round(item.price || item.cost_price || 0)}`;
-      const subtotalStr = `₹${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
-      const detailLine = `  ${qtyStr} @ ${priceStr}`.padEnd(20) + subtotalStr.padStart(10);
-      commands += `${detailLine}\n`;
+      commands += "".padEnd(17) + qty.padStart(3) + amount.padStart(10) + "\n";
     } else {
-      const qtyStr = `${item.quantity}x`;
-      const subtotalStr = `₹${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
-      const leftPart = name.padEnd(16) + qtyStr.padStart(4);
-      const rightPart = subtotalStr.padStart(10);
-      commands += `${leftPart}${rightPart}\n`;
+      commands += name.padEnd(17) + qty.padStart(3) + amount.padStart(10) + "\n";
     }
   });
+  commands += "------------------------------\n";
 
-  commands += "--------------------------------\n";
-
-  // Financial Summary
-  commands += ESC.ALIGN_RIGHT;
-  if (sale.subtotal) commands += `Subtotal: ₹${Math.round(sale.subtotal)}\n`;
+  // --- FINANCIAL SUMMARY ---
+  const subtotal = sale.subtotal || (sale.grand_total - (sale.tax_amount || 0) + (sale.discount || 0));
+  commands += printRow("Amount", `₹${Math.round(subtotal)}`);
+  
   if (sale.tax_amount > 0) {
-    const taxLabel = sale.is_outside_state ? "IGST" : "CGST+SGST";
-    commands += `${taxLabel}: ₹${Math.round(sale.tax_amount)}\n`;
+    const taxLabel = sale.is_outside_state ? "Tax (IGST)" : "Tax (GST)";
+    commands += printRow(taxLabel, `₹${Math.round(sale.tax_amount)}`);
   }
-  if (sale.discount > 0) commands += `Discount: -₹${Math.round(sale.discount)}\n`;
+  
+  if (sale.discount > 0) {
+    commands += printRow("Discount", `-₹${Math.round(sale.discount)}`);
+  }
+  
   if (sale.round_off && sale.round_off !== 0) {
-    commands += `Round Off: ${sale.round_off > 0 ? "+" : ""}${sale.round_off.toFixed(2)}\n`;
+    commands += printRow("Round Off", `${sale.round_off > 0 ? "+" : ""}${sale.round_off.toFixed(2)}`);
   }
 
-  commands += ESC.BOLD_ON;
-  const total = sale.grand_total || sale.total || 0;
-  commands += `GRAND TOTAL: ₹${Math.round(total)}\n`;
-  commands += ESC.BOLD_OFF;
+  commands += printRow("Total", `₹${Math.round(sale.grand_total || sale.total || 0)}`);
+  commands += "------------------------------\n\n";
 
-  const paid = sale.paid_amount || sale.paid || 0;
-  if (paid > total) {
-    commands += `Change Due: ₹${Math.round(paid - total)}\n`;
-  } else if (paid > 0 && paid < total) {
-    commands += `Due Balance: ₹${Math.round(total - paid)}\n`;
-  }
-
-  // Footer
+  // --- FOOTER SECTION ---
   commands += ESC.ALIGN_CENTER;
-  commands += "\nThank you!\n";
-  commands += "Powered by Storeman Ledger\n";
+  commands += printRow("Operator", "Admin");
+  commands += "\n";
+  
+  commands += ESC.FONT_SIZE_LARGE;
+  commands += "THANK YOU\n";
+  commands += ESC.FONT_SIZE_NORMAL;
+  commands += "VISIT AGAIN\n\n";
+
+  // Barcode (Reference ID) - Moved below "Thank You"
+  if (sale.reference || sale.id) {
+    const ref = sale.reference || String(sale.id);
+    commands += ESC.ALIGN_CENTER;
+    // ESC/POS Code128 Barcode: [GS k m n d1...dn]
+    const barcodeData = Buffer.from(ref, 'ascii');
+    const barcodeCommand = Buffer.concat([
+      Buffer.from([0x1d, 0x68, 0x40]), // Height: 64 dots
+      Buffer.from([0x1d, 0x77, 0x02]), // Width: 2
+      Buffer.from([0x1d, 0x48, 0x02]), // HRI (text) below barcode
+      Buffer.from([0x1d, 0x6b, 0x49, barcodeData.length]), // Code128
+      barcodeData
+    ]);
+    commands += barcodeCommand.toString('binary');
+    commands += "\n";
+  }
+  
+  commands += ESC.BOLD_OFF;
+  commands += ESC.DOUBLE_STRIKE_OFF;
+  
   commands += ESC.FEED_4;
   commands += ESC.CUT;
 

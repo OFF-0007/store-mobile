@@ -210,7 +210,7 @@ export default function SettingsScreen() {
               iconBg="bg-violet-500"
               title="Business Reports"
               subtitle="View customer, supplier & order summaries"
-              onPress={() => router.push("/reports")}
+              onPress={() => router.push("/(tabs)/reports")}
             />
           </GlassCard>
         </View>

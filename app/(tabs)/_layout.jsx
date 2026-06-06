@@ -80,6 +80,12 @@ export default function TabsLayout() {
             ),
           }}
         />
+        <Tabs.Screen
+          name="reports"
+          options={{
+            href: null, // Hide from tab bar
+          }}
+        />
       </Tabs>
     </>
   );

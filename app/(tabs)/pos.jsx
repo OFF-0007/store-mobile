@@ -17,12 +17,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useMockStore } from "@/store/mockStore";
-import { GlassCard } from "@/components/ui";
+import { GlassCard, SkeletonLoader } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
+import { Ionicons } from "@expo/vector-icons";
 
 // Safely require expo-camera to prevent crash when native modules aren't compiled yet
 let CameraView = null;
@@ -48,9 +50,9 @@ const fmtInt = (val) =>
   })}`;
 
 const PAYMENT_METHODS = [
-  { key: "Cash", label: "Cash", icon: "💵", activeBg: "#10b981", shadowColor: "#10b981" },
-  { key: "Card", label: "Card", icon: "💳", activeBg: "#3b82f6", shadowColor: "#3b82f6" },
-  { key: "UPI", label: "UPI", icon: "📱", activeBg: "#8b5cf6", shadowColor: "#8b5cf6" },
+  { key: "Cash", label: "Cash", iconName: "cash-outline", activeBg: "#10b981", shadowColor: "#10b981" },
+  { key: "Card", label: "Card", iconName: "card-outline", activeBg: "#3b82f6", shadowColor: "#3b82f6" },
+  { key: "UPI", label: "UPI", iconName: "phone-portrait-outline", activeBg: "#8b5cf6", shadowColor: "#8b5cf6" },
 ];
 
 export default function POSScreen() {
@@ -60,11 +62,19 @@ export default function POSScreen() {
     products,
     customers,
     units,
+    categories,
     recordSale,
     fetchProducts,
     fetchCustomers,
     isLoading: storeLoading,
   } = useMockStore();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchProducts(), fetchCustomers()]);
+    setRefreshing(false);
+  }, []);
 
   useEffect(() => {
     fetchProducts();
@@ -72,6 +82,7 @@ export default function POSScreen() {
   }, []);
 
   // ── States ─────────────────────────────────────────────────────────────────
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [customerSearch, setCustomerSearch] = useState("");
@@ -105,6 +116,7 @@ export default function POSScreen() {
   const [scannedProductForQty, setScannedProductForQty] = useState(null);
   const [scanQuantity, setScanQuantity] = useState("1");
   const [isTorchOn, setIsTorchOn] = useState(false);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
   // ── Customer Suggestions ───────────────────────────────────────────────────
   const filteredCustomers = useMemo(() => {
@@ -145,10 +157,14 @@ export default function POSScreen() {
     });
   }, [products, searchQuery]);
 
-  // Quick Add (First 5 available products in stock)
+  // Quick Add (Filtered by category, up to 24 available products in stock)
   const quickAddProducts = useMemo(() => {
-    return products.filter((p) => p.stock > 0).slice(0, 5);
-  }, [products]);
+    return products.filter((p) => {
+      const matchStock = p.stock > 0;
+      const matchCat = selectedCategory === "All" || p.category === selectedCategory;
+      return matchStock && matchCat;
+    }).slice(0, 24);
+  }, [products, selectedCategory]);
 
   // ── Cart Operations ────────────────────────────────────────────────────────
   const addToCart = useCallback((product, qtyToAdd = 1) => {
@@ -477,45 +493,28 @@ export default function POSScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
           style={{
-            flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
             backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 20,
-            minWidth: 44,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
-          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
 
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
-            🛒 Sell
+            Sell
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
             {selectedCustomerId ? `Customer: ${customerName}` : customerName.trim() ? `Guest: ${customerName}` : 'Retail Terminal'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/sales-return')}
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 20,
-            minWidth: 44,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4
-          }}
-        >
-          <Text style={{ fontSize: 12 }}>↩️</Text>
-          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>Return</Text>
-        </TouchableOpacity>
+        {/* Spacer to balance the back button */}
+        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -527,7 +526,28 @@ export default function POSScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#f97316"]} />
+          }
         >
+
+          {/* Process Sales Return Banner */}
+          <TouchableOpacity
+            onPress={() => router.push('/sales-return')}
+            activeOpacity={0.8}
+            className="bg-orange-50 border border-orange-200 rounded-2xl p-3 mb-4 flex-row items-center justify-between"
+          >
+            <View className="flex-row items-center gap-3">
+              <View className="w-8 h-8 rounded-full bg-orange-100 items-center justify-center">
+                <Ionicons name="arrow-undo-outline" size={16} color="#f97316" />
+              </View>
+              <View>
+                <Text className="text-slate-800 font-black text-xs uppercase tracking-wider">Process Sales Return</Text>
+                <Text className="text-slate-500 text-[10px]">Return items sold to customers</Text>
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={16} color="#f97316" />
+          </TouchableOpacity>
 
 
           {/* Product Search & Dropdown Picker (Matching Web Search Box) */}
@@ -577,27 +597,92 @@ export default function POSScreen() {
                 activeOpacity={0.8}
                 className="bg-orange-500 rounded-2xl px-5 justify-center items-center shadow-lg"
               >
-                <Text className="text-white text-xl">📷</Text>
+                <Ionicons name="camera-outline" size={20} color="#fff" />
               </TouchableOpacity>
             </View>
-
-            {/* Quick Add Tags */}
-            {quickAddProducts.length > 0 && (
-              <View className="mt-4">
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">
-                  🔥 Most Selling Products (Quick Add)
+ 
+            {/* Categories & Quick Add Tags */}
+            <View className="mt-5">
+              <View className="flex-row items-center gap-1 mb-3">
+                <Ionicons name="grid-outline" size={12} color="#f97316" />
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Categories
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingRight: 20 }}
+                className="mb-4"
+              >
+                <TouchableOpacity
+                  onPress={() => setSelectedCategory("All")}
+                  activeOpacity={0.8}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    selectedCategory === "All"
+                      ? "bg-orange-500 border-orange-500"
+                      : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <Text
+                    className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedCategory === "All" ? "text-white" : "text-slate-500"
+                    }`}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.8}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      selectedCategory === cat
+                        ? "bg-orange-500 border-orange-500"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <Text
+                      className={`text-[10px] font-black uppercase tracking-wider ${
+                        selectedCategory === cat ? "text-white" : "text-slate-500"
+                      }`}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View className="flex-row items-center gap-1 mb-3">
+                <Ionicons name="flame" size={12} color="#f97316" />
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Products ({quickAddProducts.length})
+                </Text>
+              </View>
+
+              {storeLoading ? (
+                <View className="flex-row gap-2">
+                  <SkeletonLoader height={36} width={100} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={120} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={90} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={110} className="rounded-xl" />
+                </View>
+              ) : quickAddProducts.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingRight: 20 }}
+                >
                   {quickAddProducts.map((p) => {
                     const isInCart = cart.some((i) => i.product_id === p.id);
                     return (
                       <TouchableOpacity
                         key={p.id}
                         onPress={() => addToCart(p)}
-                        className={`px-4 py-2.5 rounded-2xl border-2 flex-row items-center gap-2 ${isInCart
-                          ? "bg-orange-50 border-orange-300"
-                          : "bg-white border-slate-200"
-                          }`}
+                        className={`px-4 py-2.5 rounded-xl border-2 flex-row items-center gap-2 ${
+                          isInCart ? "bg-orange-50 border-orange-300" : "bg-slate-50 border-slate-200"
+                        }`}
                       >
                         <Text className="text-xs font-bold text-slate-800 max-w-[120px]" numberOfLines={1}>
                           {p.name}
@@ -608,80 +693,61 @@ export default function POSScreen() {
                       </TouchableOpacity>
                     );
                   })}
-                </View>
-              </View>
-            )}
-          </GlassCard>
-
-          {/* Active Cart Section (Inline list like Web POS Table) */}
-          <GlassCard className="mb-5 p-5">
-            <View className="flex-row justify-between items-center mb-4">
-              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
-                Active Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)} Items)
-              </Text>
-              {cart.length > 0 && (
-                <TouchableOpacity onPress={() => setCart([])}>
-                  <Text className="text-rose-500 text-xs font-black uppercase tracking-wider">
-                    Clear All
-                  </Text>
-                </TouchableOpacity>
+                </ScrollView>
+              ) : (
+                <Text className="text-slate-400 text-[10px] italic font-bold ml-1">
+                  No in-stock products in this category
+                </Text>
               )}
             </View>
+          </GlassCard>
 
-            {cart.length === 0 ? (
-              <View className="py-12 items-center justify-center">
-                <Text className="text-5xl mb-3">🛒</Text>
-                <Text className="text-slate-400 font-bold text-sm uppercase tracking-wide">
-                  Empty Cart
+          {/* Active Cart Section */}
+          {cart.length > 0 && (
+            <GlassCard className="mb-5 p-4">
+              <View className="flex-row justify-between items-center mb-3">
+                <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
+                  Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
                 </Text>
-                <Text className="text-slate-300 text-xs mt-1">
-                  Add products to get started
-                </Text>
+                <TouchableOpacity onPress={() => setCart([])}>
+                  <Text className="text-rose-500 text-[10px] font-black uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">
+                    Clear
+                  </Text>
+                </TouchableOpacity>
               </View>
-            ) : (
-              <ScrollView
-                style={{ maxHeight: 350 }}
-                contentContainerStyle={{ gap: 12, paddingBottom: 10 }}
-                showsVerticalScrollIndicator={true}
-                nestedScrollEnabled={true}
-              >
+
+              <View style={{ gap: 10 }}>
                 {itemsWithTotals.map((item) => (
                   <View
                     key={item.product_id}
-                    className="p-4 border-2 border-slate-100 bg-white rounded-2xl gap-3 shadow-sm"
+                    className="p-3 border-2 border-slate-100 bg-slate-50 rounded-2xl gap-3"
                   >
-                    {/* Item title & Delete */}
                     <View className="flex-row justify-between items-start">
                       <View className="flex-1 pr-3">
-                        <Text className="text-slate-800 font-black text-sm uppercase" numberOfLines={1}>
+                        <Text className="text-slate-800 font-bold text-sm uppercase" numberOfLines={1}>
                           {item.name}
                         </Text>
-                        <Text className="text-slate-400 text-xs font-bold">
-                          ₹{item.price} • Stock: {item.available_stock}
+                        <Text className="text-slate-400 text-[10px] font-bold">
+                          ₹{item.price} • Stock: {item.available_stock} • {item.unit ?? "Unit"}
                         </Text>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => removeFromCart(item.product_id)}
-                        className="bg-rose-50 p-2 rounded-xl border-2 border-rose-200"
-                      >
-                        <Text className="text-rose-500 text-sm">🗑️</Text>
-                      </TouchableOpacity>
+                      <Text className="text-orange-500 font-black text-sm font-mono">
+                        {fmt(item.subtotal)}
+                      </Text>
                     </View>
 
-                    {/* Quantity controls & Unit Picker */}
                     <View className="flex-row justify-between items-center">
-                      <View className="flex-row border-2 border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                      {/* Quantity Picker */}
+                      <View className="flex-row items-center border border-slate-200 rounded-lg overflow-hidden bg-white">
                         <TouchableOpacity
                           onPress={() => updateItemQuantity(item.product_id, item.quantity - 1)}
-                          className="px-4 py-2 bg-slate-100 active:bg-slate-200"
+                          className="px-3 py-1.5 bg-slate-100 active:bg-slate-200"
                         >
                           <Text className="text-slate-800 font-bold text-sm">−</Text>
                         </TouchableOpacity>
-                        <View className="px-4 py-2 justify-center bg-white">
-                          <Text className="text-slate-800 font-black text-sm font-mono">
-                            {item.quantity}
-                          </Text>
-                        </View>
+                        <Text className="px-3 py-1.5 text-slate-800 font-black text-xs font-mono text-center min-w-[30px]">
+                          {item.quantity}
+                        </Text>
                         <TouchableOpacity
                           onPress={() => {
                             if (item.quantity >= item.available_stock) {
@@ -690,45 +756,28 @@ export default function POSScreen() {
                             }
                             updateItemQuantity(item.product_id, item.quantity + 1);
                           }}
-                          className="px-4 py-2 bg-slate-100 active:bg-slate-200"
+                          className="px-3 py-1.5 bg-slate-100 active:bg-slate-200"
                         >
                           <Text className="text-slate-800 font-bold text-sm">＋</Text>
                         </TouchableOpacity>
                       </View>
 
-                      {/* Packaging Unit Selection */}
-                      <TouchableOpacity
-                        onPress={() => handleOpenUnitPicker(item)}
-                        className="bg-white border-2 border-slate-200 px-4 py-2.5 rounded-xl shadow-sm"
-                      >
-                        <Text className="text-slate-700 text-xs font-black">
-                          {item.unit ?? "Unit"} ▾
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-
-                    {/* GST & Discount fields inline */}
-                    <View className="flex-row gap-3 pt-2">
-                      <View className="flex-1">
-                        <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                          GST %
-                        </Text>
-                        <TextInput
-                          value={String(item.gst_rate ?? 0)}
-                          onChangeText={(val) => {
-                            const parsed = parseFloat(val);
-                            updateCartItemField(item.product_id, "gst_rate", isNaN(parsed) ? 0 : parsed);
-                          }}
-                          keyboardType="numeric"
-                          className="bg-white border-2 border-slate-200 rounded-xl px-3 py-2 text-center font-bold text-sm"
-                        />
-                      </View>
-
-                      <View className="flex-1">
-                        <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5">
-                          Disc
-                        </Text>
-                        <View className="flex-row">
+                      {/* GST and Disc condensed inline */}
+                      <View className="flex-row gap-2">
+                        <View className="flex-row items-center border border-slate-200 bg-white rounded-lg px-2">
+                          <Text className="text-[9px] font-bold text-slate-400 mr-1">GST%</Text>
+                          <TextInput
+                            value={String(item.gst_rate ?? 0)}
+                            onChangeText={(val) => {
+                              const parsed = parseFloat(val);
+                              updateCartItemField(item.product_id, "gst_rate", isNaN(parsed) ? 0 : parsed);
+                            }}
+                            keyboardType="numeric"
+                            className="w-8 text-center text-xs font-bold text-slate-700 py-1"
+                          />
+                        </View>
+                        <View className="flex-row items-center border border-slate-200 bg-white rounded-lg px-2">
+                          <Text className="text-[9px] font-bold text-slate-400 mr-1">Disc</Text>
                           <TextInput
                             value={String(item.discount ?? 0)}
                             onChangeText={(val) => {
@@ -736,317 +785,200 @@ export default function POSScreen() {
                               updateCartItemField(item.product_id, "discount", isNaN(parsed) ? 0 : parsed);
                             }}
                             keyboardType="numeric"
-                            className="flex-1 bg-white border-2 border-slate-200 border-r-0 rounded-l-xl px-3 py-2 text-center font-bold text-sm"
+                            className="w-10 text-center text-xs font-bold text-slate-700 py-1"
                           />
-                          <TouchableOpacity
-                            onPress={() => {
-                              const newType = item.discount_type === "percent" ? "fixed" : "percent";
-                              updateCartItemField(item.product_id, "discount_type", newType);
-                            }}
-                            className="bg-slate-200 px-3 py-2 rounded-r-xl border-2 border-l-0 border-slate-200 justify-center"
-                          >
-                            <Text className="text-xs font-black text-slate-700">
-                              {item.discount_type === "percent" ? "%" : "₹"}
-                            </Text>
-                          </TouchableOpacity>
                         </View>
-                      </View>
-
-                      <View className="justify-end items-end pb-1 pr-1">
-                        <Text className="text-slate-400 text-[10px] font-bold uppercase">Subtotal</Text>
-                        <Text className="text-slate-800 font-bold text-sm font-mono">
-                          {fmt(item.subtotal)}
-                        </Text>
+                        <TouchableOpacity
+                            onPress={() => removeFromCart(item.product_id)}
+                            className="bg-rose-50 px-2.5 py-1.5 rounded-lg border border-rose-100 justify-center"
+                          >
+                            <Ionicons name="trash-outline" size={14} color="#ef4444" />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   </View>
                 ))}
-              </ScrollView>
-            )}
-          </GlassCard>
+              </View>
+            </GlassCard>
+          )}
           {/* Customer and Payment Details (Matching Web POS columns/fields layout) */}
-          <GlassCard className="mb-5 p-5">
-            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
-              Customer & Payment Details
-            </Text>
-            <View className="gap-3">
-              {/* Payment Methods – Segmented Switcher */}
-              <View>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                  Payment Method
-                </Text>
-                <View style={{
-                  flexDirection: 'row',
-                  backgroundColor: '#f1f5f9',
-                  borderRadius: 16,
-                  padding: 5,
-                  borderWidth: 1,
-                  borderColor: '#e2e8f0',
-                }}>
-                  {PAYMENT_METHODS.map((method) => {
-                    const isActive = paymentMethod === method.key;
-                    return (
-                      <TouchableOpacity
-                        key={method.key}
-                        onPress={() => setPaymentMethod(method.key)}
-                        activeOpacity={0.8}
-                        style={[{
-                          flex: 1,
-                          paddingVertical: 12,
-                          borderRadius: 12,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexDirection: 'row',
-                          gap: 6,
-                        }, isActive && {
-                          backgroundColor: method.activeBg,
-                          shadowColor: method.shadowColor,
-                          shadowOffset: { width: 0, height: 4 },
-                          shadowOpacity: 0.25,
-                          shadowRadius: 6,
-                          elevation: 4,
-                        }]}
-                      >
-                        <Text style={{ fontSize: 14 }}>{method.icon}</Text>
-                        <Text style={{
-                          fontSize: 11,
-                          fontWeight: '900',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          color: isActive ? '#fff' : '#64748b',
-                        }}>{method.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
-              </View>
-
-              {/* Customer Info - Only shown when taking on Credit (Partial Payment) */}
-              {(grandTotal > 0 && Number(paidAmount || 0) < grandTotal) && (
-                <>
-                  {/* Customer Input */}
-                  <View className="relative mt-2">
-                    <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                      Customer Name
-                    </Text>
-                    <TextInput
-                      value={customerSearch}
-                      onChangeText={handleCustomerInputChange}
-                      onFocus={() => setShowCustomerSuggestions(true)}
-                      placeholder="Search or Type Guest Name..."
-                      placeholderTextColor="#94a3b8"
-                      className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                    />
-
-                    {/* Suggestions Overlay */}
-                    {showCustomerSuggestions && filteredCustomers.length > 0 && (
-                      <View className="absolute top-20 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
-                        {filteredCustomers.map((c) => (
-                          <TouchableOpacity
-                            key={c.id}
-                            onPress={() => handleSelectCustomer(c)}
-                            className="p-3 border-b border-slate-50 flex-row justify-between items-center"
-                          >
-                            <View>
-                              <Text className="text-slate-800 font-bold text-xs">{c.name}</Text>
-                              {c.phone && <Text className="text-slate-400 text-[10px]">{c.phone}</Text>}
-                            </View>
-                            <Text className="text-slate-400 text-xs">➔</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    )}
+          {cart.length > 0 && (
+            <GlassCard className="mb-5 p-5">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+                Customer & Payment Details
+              </Text>
+              <View className="gap-3">
+                {/* Payment Methods – Segmented Switcher */}
+                <View>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                    Payment Method
+                  </Text>
+                  <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: '#f1f5f9',
+                    borderRadius: 16,
+                    padding: 5,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                  }}>
+                    {PAYMENT_METHODS.map((method) => {
+                      const isActive = paymentMethod === method.key;
+                      return (
+                        <TouchableOpacity
+                          key={method.key}
+                          onPress={() => setPaymentMethod(method.key)}
+                          activeOpacity={0.8}
+                          style={[{
+                            flex: 1,
+                            paddingVertical: 12,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 6,
+                          }, isActive && {
+                            backgroundColor: method.activeBg,
+                            shadowColor: method.shadowColor,
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 6,
+                            elevation: 4,
+                          }]}
+                        >
+                          <Ionicons name={method.iconName} size={16} color={isActive ? '#fff' : '#64748b'} />
+                          <Text style={{
+                            fontSize: 11,
+                            fontWeight: '900',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                            color: isActive ? '#fff' : '#64748b',
+                          }}>{method.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-
-                  {/* Phone input */}
-                  <View>
-                    <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                      Phone Number *
-                    </Text>
-                    <TextInput
-                      value={customerPhone}
-                      onChangeText={setCustomerPhone}
-                      placeholder="Enter Phone Number..."
-                      placeholderTextColor="#94a3b8"
-                      keyboardType="numeric"
-                      disabled={!!selectedCustomerId}
-                      className={`bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${selectedCustomerId ? "opacity-60 bg-slate-100" : ""
-                        }`}
-                    />
-                  </View>
-                </>
-              )}
-            </View>
-          </GlassCard>
-
-
-          {/* Checkout & Bill Summary (Matching Web POS Summary Sidebar/Panel) */}
-          <GlassCard className="mb-8 p-5">
-            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
-              Checkout & Total
-            </Text>
-
-            <View className="gap-4">
-              {/* Payable amount & Paid amount */}
-              <View className="flex-row gap-3">
-                <View className="flex-1">
-                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
-                    Payable Amount
-                  </Text>
-                  <TextInput
-                    value={payableAmount}
-                    onChangeText={(val) => {
-                      setIsPayableAmountEdited(true);
-                      setPayableAmount(val);
-                    }}
-                    keyboardType="numeric"
-                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
-                  />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
-                    Amount Paid
-                  </Text>
-                  <TextInput
-                    value={paidAmount}
-                    onChangeText={(val) => {
-                      setIsPaidAmountEdited(true);
-                      setPaidAmount(val);
-                    }}
-                    keyboardType="numeric"
-                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
-                  />
                 </View>
 
-                {/* IGST Switch */}
-                <View className="items-center justify-end pb-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">
-                    IGST Out State
-                  </Text>
-                  <TouchableOpacity
-                    onPress={() => setIsOutsideState(!isOutsideState)}
-                    activeOpacity={0.8}
-                    className={`w-12 h-6 rounded-full relative justify-center ${isOutsideState ? "bg-orange-500" : "bg-slate-300"
-                      }`}
-                  >
-                    <View
-                      className={`w-5 h-5 bg-white rounded-full absolute ${isOutsideState ? "right-0.5" : "left-0.5"
-                        }`}
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
+                {/* Customer Info - Only shown when taking on Credit (Partial Payment) */}
+                {(grandTotal > 0 && Number(paidAmount || 0) < grandTotal) && (
+                  <>
+                    {/* Customer Input */}
+                    <View className="relative mt-2">
+                      <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                        Customer Name
+                      </Text>
+                      <TextInput
+                        value={customerSearch}
+                        onChangeText={handleCustomerInputChange}
+                        onFocus={() => setShowCustomerSuggestions(true)}
+                        placeholder="Search or Type Guest Name..."
+                        placeholderTextColor="#94a3b8"
+                        className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                      />
 
-              {/* Notes */}
-              <TextInput
-                value={additionalNotes}
-                onChangeText={setAdditionalNotes}
-                placeholder="Transaction notes / comments..."
-                placeholderTextColor="#94a3b8"
-                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-              />
+                      {/* Suggestions Overlay */}
+                      {showCustomerSuggestions && filteredCustomers.length > 0 && (
+                        <View className="absolute top-20 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
+                          {filteredCustomers.map((c) => (
+                            <TouchableOpacity
+                              key={c.id}
+                              onPress={() => handleSelectCustomer(c)}
+                              className="p-3 border-b border-slate-50 flex-row justify-between items-center"
+                            >
+                              <View>
+                                <Text className="text-slate-800 font-bold text-xs">{c.name}</Text>
+                                {c.phone && <Text className="text-slate-400 text-[10px]">{c.phone}</Text>}
+                              </View>
+                              <Text className="text-slate-400 text-xs">➔</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      )}
+                    </View>
 
-              {/* Math breakdown */}
-              <View className="border-t-2 border-slate-100 pt-4 gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-500 text-sm font-semibold">Subtotal</Text>
-                  <Text className="text-slate-800 text-sm font-semibold font-mono">
-                    {fmt(subtotal)}
-                  </Text>
-                </View>
-
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-500 text-sm font-semibold">
-                    {isOutsideState ? "IGST Total" : "CGST + SGST"}
-                  </Text>
-                  <Text className="text-slate-800 text-sm font-semibold font-mono">
-                    {fmt(taxAmount)}
-                  </Text>
-                </View>
-
-                {discountTotal > 0 && (
-                  <View className="flex-row justify-between">
-                    <Text className="text-slate-500 text-sm font-semibold">Total Discount</Text>
-                    <Text className="text-rose-500 text-sm font-semibold font-mono">
-                      -{fmt(discountTotal)}
-                    </Text>
-                  </View>
+                    {/* Phone input */}
+                    <View>
+                      <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                        Phone Number *
+                      </Text>
+                      <TextInput
+                        value={customerPhone}
+                        onChangeText={setCustomerPhone}
+                        placeholder="Enter Phone Number..."
+                        placeholderTextColor="#94a3b8"
+                        keyboardType="numeric"
+                        disabled={!!selectedCustomerId}
+                        className={`bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${selectedCustomerId ? "opacity-60 bg-slate-100" : ""
+                          }`}
+                      />
+                    </View>
+                  </>
                 )}
-
-                {roundOff !== 0 && (
-                  <View className="flex-row justify-between">
-                    <Text className="text-slate-500 text-sm font-semibold">Round Off</Text>
-                    <Text className="text-slate-800 text-sm font-semibold font-mono">
-                      {roundOff > 0 ? "+" : ""}{roundOff.toFixed(2)}
-                    </Text>
-                  </View>
-                )}
-
-                {/* Change or due info */}
-                {changeDue > 0 ? (
-                  <View className="flex-row justify-between pt-2">
-                    <Text className="text-slate-400 text-sm uppercase font-bold">Change Due</Text>
-                    <Text className="text-green-600 font-bold text-sm font-mono">
-                      {fmtInt(changeDue)}
-                    </Text>
-                  </View>
-                ) : balanceOutstanding > 0 ? (
-                  <View className="flex-row justify-between pt-2">
-                    <Text className="text-rose-400 text-sm uppercase font-bold">Balance Outstanding</Text>
-                    <Text className="text-rose-500 font-bold text-sm font-mono">
-                      {fmtInt(balanceOutstanding)}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Grand Total */}
-                <View className="flex-row justify-between pt-3 border-t-2 border-slate-100 mt-3">
-                  <Text className="text-slate-800 font-black text-base uppercase">Grand Total</Text>
-                  <Text className="text-orange-500 font-black text-xl font-mono">
-                    {fmtInt(grandTotal)}
-                  </Text>
-                </View>
               </View>
-
-              {/* Complete Checkout Action */}
-              <TouchableOpacity
-                onPress={handleCheckoutSubmit}
-                disabled={storeLoading || cart.length === 0}
-                activeOpacity={0.85}
-                className="mt-3"
-                style={{
-                  backgroundColor: storeLoading || cart.length === 0 ? "#fdba74" : "#f97316",
-                  borderRadius: 20,
-                  paddingVertical: 18,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexDirection: "row",
-                  shadowColor: "#ea580c",
-                  shadowOffset: { width: 0, height: 6 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 12,
-                  elevation: 8,
-                }}
-              >
-                {storeLoading ? (
-                  <ActivityIndicator size="small" color="#ffffff" />
-                ) : (
-                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 1.5 }}>
-                    Complete Checkout
-                  </Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </GlassCard>
+            </GlassCard>
+          )}
         </ScrollView>
+      {/* Floating Scanner FAB */}
+      <TouchableOpacity
+        onPress={handleOpenScanner}
+        activeOpacity={0.8}
+        style={{
+          position: 'absolute',
+          bottom: cart.length > 0 ? 100 : 24,
+          right: 20,
+          backgroundColor: '#f97316',
+          borderRadius: 28,
+          width: 56,
+          height: 56,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: '#ea580c',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 6,
+          elevation: 6,
+          zIndex: 999,
+        }}
+      >
+        <Ionicons name="scan-outline" size={24} color="#fff" />
+      </TouchableOpacity>
       </KeyboardAvoidingView>
 
+      {/* Fixed Bottom Checkout Bar */}
+      {cart.length > 0 && (
+        <View style={{
+          padding: 16,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#e2e8f0',
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+          elevation: 10,
+          paddingBottom: insets.bottom > 0 ? insets.bottom + 10 : 16,
+        }} className="flex-row items-center justify-between z-40">
+          <View>
+            <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">Grand Total</Text>
+            <Text className="text-2xl font-black text-slate-800 font-mono tracking-tight">{fmtInt(grandTotal)}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => setShowCheckoutModal(true)}
+            activeOpacity={0.8}
+            className="bg-orange-500 flex-row items-center justify-center px-6 py-4 rounded-2xl shadow-lg shadow-orange-500/40"
+          >
+            <Text className="text-white font-black text-sm uppercase tracking-widest mr-2">Checkout</Text>
+            <Ionicons name="arrow-forward" size={14} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      )}
+ 
       {/* Floating Scanner Button */}
       <TouchableOpacity
         onPress={handleOpenScanner}
         style={{
           position: 'absolute',
-          bottom: 20,
+          bottom: cart.length > 0 ? 100 : 20,
           right: 20,
           backgroundColor: '#f97316',
           borderRadius: 50,
@@ -1059,11 +991,137 @@ export default function POSScreen() {
           shadowOpacity: 0.4,
           shadowRadius: 8,
           elevation: 8,
-          zIndex: 1000,
+          zIndex: 30,
         }}
       >
-        <Text style={{ fontSize: 28 }}>📷</Text>
+        <Ionicons name="barcode-outline" size={26} color="#fff" />
       </TouchableOpacity>
+ 
+      {/* ── CHECKOUT MODAL (Math & Submit) ─────────────────────────────────── */}
+      <Modal visible={showCheckoutModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-end">
+          <View className="bg-white rounded-t-3xl pt-6 px-6 pb-10 max-h-[90%]">
+            <View className="flex-row justify-between items-center mb-6">
+              <Text className="text-xl font-black text-slate-800 uppercase tracking-tight">Final Checkout</Text>
+              <TouchableOpacity onPress={() => setShowCheckoutModal(false)} className="w-8 h-8 bg-slate-100 rounded-full items-center justify-center">
+                <Ionicons name="close" size={16} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              <View className="gap-5">
+                {/* Math breakdown */}
+                <View className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                  <View className="flex-row justify-between mb-2">
+                    <Text className="text-slate-500 text-xs font-bold uppercase">Subtotal</Text>
+                    <Text className="text-slate-800 text-sm font-bold font-mono">{fmt(subtotal)}</Text>
+                  </View>
+                  <View className="flex-row justify-between mb-2 items-center">
+                    <Text className="text-slate-500 text-xs font-bold uppercase">{isOutsideState ? "IGST Total" : "CGST + SGST"}</Text>
+                    <View className="flex-row items-center gap-2">
+                      <TouchableOpacity onPress={() => setIsOutsideState(!isOutsideState)} className="bg-white border border-slate-200 px-2 py-1 rounded">
+                        <Text className="text-[9px] font-bold text-slate-500 uppercase">{isOutsideState ? "To Intrastate" : "To Interstate"}</Text>
+                      </TouchableOpacity>
+                      <Text className="text-slate-800 text-sm font-bold font-mono">{fmt(taxAmount)}</Text>
+                    </View>
+                  </View>
+                  {discountTotal > 0 && (
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-slate-500 text-xs font-bold uppercase">Total Discount</Text>
+                      <Text className="text-rose-500 text-sm font-bold font-mono">-{fmt(discountTotal)}</Text>
+                    </View>
+                  )}
+                  {roundOff !== 0 && (
+                    <View className="flex-row justify-between mb-2">
+                      <Text className="text-slate-500 text-xs font-bold uppercase">Round Off</Text>
+                      <Text className="text-slate-800 text-sm font-bold font-mono">{roundOff > 0 ? "+" : ""}{roundOff.toFixed(2)}</Text>
+                    </View>
+                  )}
+                  <View className="flex-row justify-between pt-3 mt-1 border-t border-slate-200">
+                    <Text className="text-slate-800 font-black text-sm uppercase">Grand Total</Text>
+                    <Text className="text-orange-500 font-black text-lg font-mono">{fmtInt(grandTotal)}</Text>
+                  </View>
+                </View>
+
+                {/* Amounts Input */}
+                <View className="flex-row gap-3">
+                  <View className="flex-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Payable Amount</Text>
+                    <TextInput
+                      value={payableAmount}
+                      onChangeText={(val) => { setIsPayableAmountEdited(true); setPayableAmount(val); }}
+                      keyboardType="numeric"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-black text-sm"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Amount Paid</Text>
+                    <TextInput
+                      value={paidAmount}
+                      onChangeText={(val) => { setIsPaidAmountEdited(true); setPaidAmount(val); }}
+                      keyboardType="numeric"
+                      className="bg-slate-50 border border-orange-200 rounded-xl px-4 py-3 text-orange-600 font-black text-sm bg-orange-50/50"
+                    />
+                  </View>
+                </View>
+
+                {/* Change or due info */}
+                {changeDue > 0 ? (
+                  <View className="flex-row justify-between items-center bg-green-50 px-4 py-3 rounded-xl border border-green-100">
+                    <Text className="text-green-600 text-xs uppercase font-black tracking-wider">Return Change</Text>
+                    <Text className="text-green-600 font-black text-lg font-mono">{fmtInt(changeDue)}</Text>
+                  </View>
+                ) : balanceOutstanding > 0 ? (
+                  <View className="flex-row justify-between items-center bg-rose-50 px-4 py-3 rounded-xl border border-rose-100">
+                    <Text className="text-rose-600 text-xs uppercase font-black tracking-wider">Balance Due</Text>
+                    <Text className="text-rose-600 font-black text-lg font-mono">{fmtInt(balanceOutstanding)}</Text>
+                  </View>
+                ) : null}
+
+                {/* Notes */}
+                <View>
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Notes</Text>
+                  <TextInput
+                    value={additionalNotes}
+                    onChangeText={setAdditionalNotes}
+                    placeholder="Optional notes..."
+                    placeholderTextColor="#94a3b8"
+                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 text-sm font-bold"
+                  />
+                </View>
+
+                <TouchableOpacity
+                  onPress={() => { setShowCheckoutModal(false); handleCheckoutSubmit(); }}
+                  disabled={storeLoading || cart.length === 0}
+                  activeOpacity={0.85}
+                  className="mt-2"
+                  style={{
+                    backgroundColor: storeLoading || cart.length === 0 ? "#fdba74" : "#f97316",
+                    borderRadius: 20,
+                    paddingVertical: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexDirection: "row",
+                    shadowColor: "#ea580c",
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 12,
+                    elevation: 8,
+                  }}
+                >
+                  {storeLoading ? (
+                    <ActivityIndicator size="small" color="#ffffff" />
+                  ) : (
+                    <Text style={{ color: "#fff", fontWeight: "900", fontSize: 15, textTransform: "uppercase", letterSpacing: 1.5 }}>
+                      Confirm & Submit
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
 
       {/* ── UNIT PICKER MODAL ──────────────────────────────────────────────── */}
       <Modal
@@ -1092,7 +1150,7 @@ export default function POSScreen() {
                     </Text>
                   </View>
                   {activeUnitItem?.unit_id === u.id && (
-                    <Text className="text-orange-500 font-black text-lg">✓</Text>
+                    <Ionicons name="checkmark-circle" size={20} color="#f97316" />
                   )}
                 </TouchableOpacity>
               ))}
@@ -1120,7 +1178,7 @@ export default function POSScreen() {
             {/* Success Status banner */}
             <View className="items-center mb-8">
               <View className="w-20 h-20 bg-green-100 rounded-3xl items-center justify-center mb-4 shadow-lg">
-                <Text className="text-green-600 text-4xl">✓</Text>
+                <Ionicons name="checkmark-circle-outline" size={44} color="#16a34a" />
               </View>
               <Text className="text-slate-800 text-2xl font-black uppercase tracking-tight">
                 Transaction Success!
@@ -1282,20 +1340,22 @@ export default function POSScreen() {
             <TouchableOpacity
               onPress={() => printThermalReceipt(completedSale)}
               activeOpacity={0.85}
-              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#f97316", borderRadius: 24, alignItems: "center", elevation: 6, shadowColor: "#f97316", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
+              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#f97316", borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", elevation: 6, shadowColor: "#f97316", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
             >
+              <Ionicons name="print-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
               <Text className="text-white font-black text-sm uppercase tracking-widest">
-                🖨️ Print Thermal Receipt
+                Print Thermal Receipt
               </Text>
             </TouchableOpacity>
-
+ 
             <TouchableOpacity
               onPress={() => Alert.alert("Print A4 Invoice", "Generating A4 Invoice PDF file... PDF downloaded to local storage.")}
               activeOpacity={0.85}
-              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#1e293b", borderRadius: 24, alignItems: "center", elevation: 4, shadowColor: "#1e293b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
+              style={{ width: "100%", paddingVertical: 20, backgroundColor: "#1e293b", borderRadius: 24, flexDirection: "row", alignItems: "center", justifyContent: "center", elevation: 4, shadowColor: "#1e293b", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8 }}
             >
+              <Ionicons name="document-text-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
               <Text className="text-white font-black text-sm uppercase tracking-widest">
-                📄 Print A4 Invoice
+                Print A4 Invoice
               </Text>
             </TouchableOpacity>
 
@@ -1319,21 +1379,23 @@ export default function POSScreen() {
         <SafeAreaView className="flex-1 bg-black justify-between">
           {/* Header overlay */}
           <View className="p-6 flex-row justify-between items-center z-10 bg-black/60">
-            <Text className="text-white font-black text-lg uppercase">Scan Item Barcode</Text>
-            <View className="flex-row gap-3">
+            <Text className="text-white font-black text-sm uppercase tracking-wider">Scan Item Barcode</Text>
+            <View className="flex-row gap-2">
               <TouchableOpacity
                 onPress={() => setIsTorchOn(!isTorchOn)}
-                className={`p-3 rounded-full ${isTorchOn ? 'bg-orange-500' : 'bg-white/20'}`}
+                className={`flex-row items-center gap-1.5 px-4 py-2.5 rounded-full ${isTorchOn ? 'bg-orange-500' : 'bg-white/10 border border-white/20'}`}
               >
-                <Text className="text-white text-sm font-bold px-3">
-                  {isTorchOn ? "🔦 Off" : "🔦 On"}
+                <Ionicons name={isTorchOn ? "flash" : "flash-outline"} size={14} color="#fff" />
+                <Text className="text-white text-xs font-black uppercase tracking-wider">
+                  {isTorchOn ? "Off" : "On"}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => setShowScanner(false)}
-                className="bg-white/20 p-3 rounded-full"
+                className="flex-row items-center gap-1.5 bg-white/10 border border-white/20 px-4 py-2.5 rounded-full"
               >
-                <Text className="text-white text-sm font-bold px-3">✕ Close</Text>
+                <Ionicons name="close" size={14} color="#fff" />
+                <Text className="text-white text-xs font-black uppercase tracking-wider">Close</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1464,10 +1526,11 @@ export default function POSScreen() {
                     Alert.alert("Invalid Quantity", "Please enter a valid quantity greater than 0.");
                   }
                 }}
-                className="bg-slate-800 py-4 rounded-2xl shadow-lg"
+                className="bg-slate-800 py-4 rounded-2xl shadow-lg flex-row items-center justify-center gap-2"
               >
+                <Ionicons name="camera-outline" size={14} color="#fff" />
                 <Text className="text-white text-center font-black uppercase tracking-wider">
-                  Add & Scan Again 📷
+                  Add & Scan Again
                 </Text>
               </TouchableOpacity>
             </View>

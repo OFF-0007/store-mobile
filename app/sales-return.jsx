@@ -11,10 +11,13 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import apiClient from "@/lib/api/client";
+import { Ionicons } from "@expo/vector-icons";
+import { GlassCard, CardSkeleton } from "@/components/ui";
 
 export default function SalesReturnScreen() {
   const router = useRouter();
@@ -97,6 +100,14 @@ export default function SalesReturnScreen() {
     setReturnItems(returnItems.filter((_, i) => i !== index));
   };
 
+  const calculateTotal = () => {
+    return returnItems.reduce((sum, item) => {
+      const qty = parseFloat(item.quantity) || 0;
+      const price = parseFloat(item.unit_price) || 0;
+      return sum + (qty * price);
+    }, 0);
+  };
+
   const handleSubmit = async () => {
     if (!selectedWarehouse) {
       Alert.alert('Validation Error', 'Please select warehouse');
@@ -147,252 +158,337 @@ export default function SalesReturnScreen() {
         paddingHorizontal: 12,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
       }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 24 }}>‹</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+          }}
+        >
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-          Sales Return
-        </Text>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            Sales Return
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            Return items from customers
+          </Text>
+        </View>
+
+        {/* Spacer to balance the back button */}
+        <View style={{ width: 36 }} />
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#f97316" />
+        <View className="flex-1 p-4 gap-3 bg-slate-50">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </View>
       ) : (
-        <ScrollView className="flex-1 p-4">
-          {/* Customer Selection (Optional) */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Customer (Optional)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <TouchableOpacity
-                onPress={() => setSelectedCustomer(null)}
-                className={`mr-2 px-4 py-2 rounded-lg ${
-                  selectedCustomer === null ? 'bg-orange-500' : 'bg-slate-200'
-                }`}
-              >
-                <Text className={`text-sm font-bold ${
-                  selectedCustomer === null ? 'text-white' : 'text-slate-700'
-                }`}>
-                  Walk-in
-                </Text>
-              </TouchableOpacity>
-              {customers.map((customer) => (
+        <ScrollView 
+          className="flex-1"
+          contentContainerClassName="p-4 pb-12"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={fetchData} colors={["#f97316"]} />
+          }
+        >
+          {/* Configuration Form Card */}
+          <GlassCard className="mb-4 p-4 gap-4">
+            {/* Customer Selection */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Customer (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
                 <TouchableOpacity
-                  key={customer.id}
-                  onPress={() => setSelectedCustomer(customer.id)}
-                  className={`mr-2 px-4 py-2 rounded-lg ${
-                    selectedCustomer === customer.id ? 'bg-orange-500' : 'bg-slate-200'
+                  onPress={() => setSelectedCustomer(null)}
+                  activeOpacity={0.8}
+                  className={`px-3.5 py-2 rounded-full border ${
+                    selectedCustomer === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
                   }`}
                 >
-                  <Text className={`text-sm font-bold ${
-                    selectedCustomer === customer.id ? 'text-white' : 'text-slate-700'
+                  <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                    selectedCustomer === null ? 'text-white' : 'text-slate-500'
                   }`}>
-                    {customer.name}
+                    Walk-in
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Warehouse Selection */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Warehouse *</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {warehouses.map((warehouse) => (
-                <TouchableOpacity
-                  key={warehouse.id}
-                  onPress={() => setSelectedWarehouse(warehouse.id)}
-                  className={`mr-2 px-4 py-2 rounded-lg ${
-                    selectedWarehouse === warehouse.id ? 'bg-orange-500' : 'bg-slate-200'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${
-                    selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    {warehouse.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Sale Selection (Optional) */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Linked Sale (Optional)</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              <TouchableOpacity
-                onPress={() => setSelectedSale(null)}
-                className={`mr-2 px-4 py-2 rounded-lg ${
-                  selectedSale === null ? 'bg-orange-500' : 'bg-slate-200'
-                }`}
-              >
-                <Text className={`text-sm font-bold ${
-                  selectedSale === null ? 'text-white' : 'text-slate-700'
-                }`}>
-                  None
-                </Text>
-              </TouchableOpacity>
-              {sales.map((sale) => (
-                <TouchableOpacity
-                  key={sale.id}
-                  onPress={() => setSelectedSale(sale.id)}
-                  className={`mr-2 px-4 py-2 rounded-lg ${
-                    selectedSale === sale.id ? 'bg-orange-500' : 'bg-slate-200'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${
-                    selectedSale === sale.id ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    {sale.formatted_id || `SALE-${sale.id}`}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* Return Date */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Return Date *</Text>
-            <TextInput
-              value={returnDate}
-              onChangeText={setReturnDate}
-              className="bg-white border-2 border-slate-200 rounded-lg px-4 py-3"
-              placeholder="YYYY-MM-DD"
-            />
-          </View>
-
-          {/* Refund Mode */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Refund Mode *</Text>
-            <View className="flex-row flex-wrap">
-              {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  onPress={() => setRefundMode(mode)}
-                  className={`mr-2 mb-2 px-4 py-2 rounded-lg ${
-                    refundMode === mode ? 'bg-orange-500' : 'bg-slate-200'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${
-                    refundMode === mode ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    {mode}
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                {customers.map((customer) => (
+                  <TouchableOpacity
+                    key={customer.id}
+                    onPress={() => setSelectedCustomer(customer.id)}
+                    activeOpacity={0.8}
+                    className={`px-3.5 py-2 rounded-full border ${
+                      selectedCustomer === customer.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedCustomer === customer.id ? 'text-white' : 'text-slate-500'
+                    }`}>
+                      {customer.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
-          </View>
 
-          {/* Outside State */}
-          <View className="mb-4">
-            <View className="flex-row items-center">
-              <TouchableOpacity
-                onPress={() => setIsOutsideState(!isOutsideState)}
-                className={`w-6 h-6 rounded border-2 ${
-                  isOutsideState ? 'bg-orange-500 border-orange-500' : 'border-slate-300'
-                } items-center justify-center mr-3`}
-              >
-                {isOutsideState && <Text className="text-white text-xs">✓</Text>}
-              </TouchableOpacity>
-              <Text className="text-sm text-slate-700">Outside State Transaction</Text>
+            {/* Warehouse Selection */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Warehouse *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                {warehouses.map((warehouse) => (
+                  <TouchableOpacity
+                    key={warehouse.id}
+                    onPress={() => setSelectedWarehouse(warehouse.id)}
+                    activeOpacity={0.8}
+                    className={`px-3.5 py-2 rounded-full border ${
+                      selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
+                    }`}>
+                      {warehouse.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
             </View>
-          </View>
 
-          {/* Return Items */}
-          <View className="mb-4">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm font-bold text-slate-700">Return Items *</Text>
-              <TouchableOpacity onPress={addReturnItem} className="bg-orange-500 px-4 py-2 rounded-lg">
-                <Text className="text-white text-sm font-bold">+ Add Item</Text>
+            {/* Sale Selection */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Linked Sale (Optional)</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                <TouchableOpacity
+                  onPress={() => setSelectedSale(null)}
+                  activeOpacity={0.8}
+                  className={`px-3.5 py-2 rounded-full border ${
+                    selectedSale === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                    selectedSale === null ? 'text-white' : 'text-slate-500'
+                  }`}>
+                    None
+                  </Text>
+                </TouchableOpacity>
+                {sales.map((sale) => (
+                  <TouchableOpacity
+                    key={sale.id}
+                    onPress={() => setSelectedSale(sale.id)}
+                    activeOpacity={0.8}
+                    className={`px-3.5 py-2 rounded-full border ${
+                      selectedSale === sale.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedSale === sale.id ? 'text-white' : 'text-slate-500'
+                    }`}>
+                      {sale.formatted_id || `SALE-${sale.id}`}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          </GlassCard>
+
+          {/* Date, Refund & Outside State Info Card */}
+          <GlassCard className="mb-4 p-4 gap-4">
+            {/* Return Date */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">Return Date *</Text>
+              <TextInput
+                value={returnDate}
+                onChangeText={setReturnDate}
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                placeholder="YYYY-MM-DD"
+              />
+            </View>
+
+            {/* Refund Mode */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1 font-bold">Refund Mode *</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => setRefundMode(mode)}
+                    activeOpacity={0.8}
+                    className={`px-4 py-2 rounded-full border ${
+                      refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      refundMode === mode ? 'text-white' : 'text-slate-500'
+                    }`}>
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Outside State Transaction */}
+            <TouchableOpacity
+              onPress={() => setIsOutsideState(!isOutsideState)}
+              activeOpacity={0.8}
+              className="flex-row items-center mt-1 ml-1"
+            >
+              <View className={`w-5.5 h-5.5 rounded-lg border-2 items-center justify-center mr-3 ${
+                isOutsideState ? 'bg-orange-500 border-orange-500 shadow-sm' : 'border-slate-300'
+              }`}>
+                {isOutsideState && <Ionicons name="checkmark" size={12} color="#fff" />}
+              </View>
+              <Text className="text-slate-600 text-xs font-bold uppercase tracking-wider">Outside State Transaction</Text>
+            </TouchableOpacity>
+          </GlassCard>
+
+          {/* Current Return Summary Card */}
+          {returnItems.length > 0 && (
+            <GlassCard className="mb-4 bg-orange-500/5 border-orange-200/50">
+              <Text className="text-slate-700 text-[10px] font-black uppercase tracking-wider mb-2.5">Current Return Summary</Text>
+              <View className="gap-2 bg-white/80 border border-orange-100 rounded-2xl p-4">
+                <View className="flex-row justify-between">
+                  <Text className="text-slate-500 text-xs font-bold">Return Value</Text>
+                  <Text className="text-slate-800 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
+                </View>
+                {refundMode !== 'CREDIT' && (
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-500 text-xs font-bold">Cash Refund</Text>
+                    <Text className="text-indigo-600 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
+                  </View>
+                )}
+                {refundMode === 'CREDIT' && (
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-500 text-xs font-bold">Customer Credit</Text>
+                    <Text className="text-orange-600 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
+                  </View>
+                )}
+              </View>
+            </GlassCard>
+          )}
+
+          {/* Return Items Section */}
+          <GlassCard className="mb-4 p-4">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">Return Items *</Text>
+              <TouchableOpacity 
+                onPress={addReturnItem}
+                activeOpacity={0.8}
+                className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"
+              >
+                <Text className="text-orange-600 text-[10px] font-black uppercase tracking-wider">+ Add Item</Text>
               </TouchableOpacity>
             </View>
 
             {returnItems.map((item, index) => (
-              <View key={index} className="bg-white border border-slate-200 rounded-lg p-4 mb-2">
-                <View className="flex-row justify-between items-start mb-3">
-                  <Text className="text-sm font-bold text-slate-700">Item {index + 1}</Text>
-                  <TouchableOpacity onPress={() => removeReturnItem(index)}>
-                    <Text className="text-red-500 text-sm font-bold">Remove</Text>
+              <View key={index} className="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 mb-3">
+                <View className="flex-row justify-between items-center mb-3.5">
+                  <View className="bg-slate-200 px-2.5 py-1 rounded-lg">
+                    <Text className="text-slate-700 text-[10px] font-black uppercase tracking-wide">Item #{index + 1}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => removeReturnItem(index)} activeOpacity={0.8}>
+                    <Text className="text-rose-500 text-[10px] font-black uppercase tracking-wider">✕ Remove</Text>
                   </TouchableOpacity>
                 </View>
 
-                {/* Product Name Box */}
+                {/* Product Name Display */}
                 {item.product_name && (
-                  <View className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3">
-                    <Text className="text-sm font-bold text-orange-800">{item.product_name}</Text>
+                  <View className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-3">
+                    <Text className="text-orange-800 text-xs font-black uppercase">{item.product_name}</Text>
                   </View>
                 )}
 
+                {/* Product ID Input */}
+                <View className="mb-3">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Product ID *</Text>
+                  <TextInput
+                    value={item.product_id}
+                    onChangeText={(text) => updateReturnItem(index, 'product_id', text)}
+                    keyboardType="numeric"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
+                    placeholder="Enter Product ID"
+                  />
+                </View>
+
                 {/* Fields Row */}
-                <View className="flex-row gap-2 mb-2">
+                <View className="flex-row gap-2 mb-3">
                   <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Quantity</Text>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Quantity *</Text>
                     <TextInput
                       value={item.quantity}
                       onChangeText={(text) => updateReturnItem(index, 'quantity', text)}
                       keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Qty"
                     />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Unit Price</Text>
+                  <View className="flex-1.5">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Unit Price *</Text>
                     <TextInput
                       value={item.unit_price}
                       onChangeText={(text) => updateReturnItem(index, 'unit_price', text)}
                       keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Price"
                     />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Tax Rate %</Text>
+                  <View className="flex-1.2">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Tax Rate %</Text>
                     <TextInput
                       value={item.tax_rate}
                       onChangeText={(text) => updateReturnItem(index, 'tax_rate', text)}
                       keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Tax %"
                     />
                   </View>
                 </View>
-
-                {/* Hidden Product ID */}
-                <TextInput
-                  value={item.product_id}
-                  onChangeText={(text) => updateReturnItem(index, 'product_id', text)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
-                  placeholder="Product ID"
-                />
               </View>
             ))}
-          </View>
+          </GlassCard>
 
           {/* Notes */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Notes</Text>
+          <GlassCard className="mb-6 p-4">
+            <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Notes</Text>
             <TextInput
               value={notes}
               onChangeText={setNotes}
-              className="bg-white border-2 border-slate-200 rounded-lg px-4 py-3"
+              className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 h-24"
               placeholder="Add notes..."
               multiline
-              numberOfLines={3}
+              textAlignVertical="top"
             />
-          </View>
+          </GlassCard>
 
           {/* Submit Button */}
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={submitting}
-            className="bg-orange-500 rounded-lg py-4"
+            activeOpacity={0.8}
+            className="bg-orange-500 rounded-2xl py-4 shadow-lg flex-row items-center justify-center"
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text className="text-white text-center font-bold">Process Return</Text>
+              <Text className="text-white text-center text-sm font-black uppercase tracking-wider">
+                Process Return
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>

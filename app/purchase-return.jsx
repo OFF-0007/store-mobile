@@ -12,10 +12,13 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import apiClient from "@/lib/api/client";
+import { Ionicons } from "@expo/vector-icons";
+import { GlassCard, CardSkeleton } from "@/components/ui";
 
 export default function PurchaseReturnScreen() {
   const router = useRouter();
@@ -360,299 +363,354 @@ export default function PurchaseReturnScreen() {
         paddingHorizontal: 12,
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
+        elevation: 4,
+        shadowColor: '#f97316',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
       }}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 12 }}>
-          <Text style={{ color: '#fff', fontSize: 24 }}>‹</Text>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          activeOpacity={0.7}
+          style={{
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: 'rgba(255,255,255,0.2)',
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+          }}
+        >
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}>
-          Purchase Return
-        </Text>
+
+        <View style={{ alignItems: 'center', flex: 1 }}>
+          <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
+            Purchase Return
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
+            Return items to suppliers
+          </Text>
+        </View>
+
+        {/* Spacer to balance the back button */}
+        <View style={{ width: 36 }} />
       </View>
 
       {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#f97316" />
+        <View className="flex-1 p-4 gap-3 bg-slate-50">
+          <CardSkeleton />
+          <CardSkeleton />
+          <CardSkeleton />
         </View>
       ) : (
-        <ScrollView className="flex-1 p-4">
+        <ScrollView 
+          className="flex-1"
+          contentContainerClassName="p-4 pb-12"
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={loading} onRefresh={fetchData} colors={["#f97316"]} />
+          }
+        >
           {/* Linked Purchase Info */}
           {linkedPurchaseDetails && (
-            <View className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 mb-4">
-              <View className="flex-row items-center mb-2">
-                <View className="bg-emerald-500 rounded-lg p-2 mr-3">
-                  <Text className="text-white text-xs font-bold">INV</Text>
+            <GlassCard className="mb-4 bg-emerald-50/30 border-emerald-200">
+              <View className="flex-row items-center mb-3">
+                <View className="bg-emerald-500 rounded-xl p-2.5 mr-3">
+                  <Ionicons name="document-text" size={18} color="#fff" />
                 </View>
                 <View className="flex-1">
-                  <Text className="text-emerald-800 text-xs font-bold uppercase">Linked Purchase</Text>
-                  <Text className="text-slate-900 text-sm font-bold">
-                    {linkedPurchaseDetails.formatted_id || `PRCH-${linkedPurchaseDetails.id}`} — {linkedPurchaseDetails.supplier?.name}
+                  <Text className="text-emerald-800 text-[10px] font-black uppercase tracking-wider">Linked Purchase Invoice</Text>
+                  <Text className="text-slate-900 text-sm font-black uppercase tracking-tight">
+                    {linkedPurchaseDetails.formatted_id || `PRCH-${linkedPurchaseDetails.id}`}
+                  </Text>
+                  <Text className="text-slate-500 text-xs font-bold mt-0.5">
+                    {linkedPurchaseDetails.supplier?.name}
                   </Text>
                 </View>
                 <TouchableOpacity 
                   onPress={() => setSelectedPurchase(null)}
-                  className="bg-emerald-600 px-3 py-1 rounded-lg"
+                  activeOpacity={0.8}
+                  className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl"
                 >
-                  <Text className="text-white text-xs font-bold">Clear</Text>
+                  <Text className="text-rose-600 text-[10px] font-black uppercase tracking-wider">Clear</Text>
                 </TouchableOpacity>
               </View>
               
-              <View className="bg-white rounded-lg p-3 space-y-2">
+              <View className="bg-white/80 border border-emerald-100 rounded-2xl p-4 gap-2.5">
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs">Gross Purchase</Text>
-                  <Text className="text-slate-900 text-xs font-bold">₹{purchaseTotal.toLocaleString()}</Text>
+                  <Text className="text-slate-500 text-xs font-bold">Gross Purchase</Text>
+                  <Text className="text-slate-800 text-xs font-black">₹{purchaseTotal.toLocaleString()}</Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs">Prior Returns</Text>
-                  <Text className="text-rose-600 text-xs font-bold">-₹{priorReturnsTotal.toLocaleString()}</Text>
+                  <Text className="text-slate-500 text-xs font-bold">Prior Returns</Text>
+                  <Text className="text-rose-600 text-xs font-black">-₹{priorReturnsTotal.toLocaleString()}</Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs">Remaining Purchasable</Text>
-                  <Text className="text-orange-600 text-xs font-bold">₹{remainingPurchasable.toLocaleString()}</Text>
+                  <Text className="text-slate-500 text-xs font-bold">Remaining Purchasable</Text>
+                  <Text className="text-orange-600 text-xs font-black">₹{remainingPurchasable.toLocaleString()}</Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs">Paid Amount</Text>
-                  <Text className="text-green-600 text-xs font-bold">₹{paidAmount.toLocaleString()}</Text>
+                  <Text className="text-slate-500 text-xs font-bold">Paid Amount</Text>
+                  <Text className="text-emerald-600 text-xs font-black">₹{paidAmount.toLocaleString()}</Text>
                 </View>
                 <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs">Prior Refunds</Text>
-                  <Text className="text-indigo-600 text-xs font-bold">-₹{priorRefundsTotal.toLocaleString()}</Text>
+                  <Text className="text-slate-500 text-xs font-bold">Prior Refunds</Text>
+                  <Text className="text-indigo-600 text-xs font-black">-₹{priorRefundsTotal.toLocaleString()}</Text>
                 </View>
-                <View className="border-t border-slate-200 pt-2">
+                <View className="border-t border-slate-100 pt-2.5 mt-1">
                   <View className="flex-row justify-between">
-                    <Text className="text-slate-700 text-xs font-bold">Outstanding Dues</Text>
-                    <Text className={`text-xs font-bold ${outstandingDues > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    <Text className="text-slate-700 text-xs font-black uppercase tracking-wider">Outstanding Dues</Text>
+                    <Text className={`text-xs font-black ${outstandingDues > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                       ₹{outstandingDues.toLocaleString()}
                     </Text>
                   </View>
                 </View>
               </View>
-            </View>
+            </GlassCard>
           )}
 
-          {/* Supplier Selection */}
+          {/* Configuration Form Card (if no linked purchase) */}
           {!linkedPurchaseDetails && (
-            <View className="mb-4">
-              <Text className="text-sm font-bold text-slate-700 mb-2">Supplier *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {suppliers.map((supplier) => (
+            <GlassCard className="mb-4 p-4 gap-4">
+              {/* Supplier Selection */}
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Supplier *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                  {suppliers.map((supplier) => (
+                    <TouchableOpacity
+                      key={supplier.id}
+                      onPress={() => setSelectedSupplier(supplier.id)}
+                      activeOpacity={0.8}
+                      className={`px-3.5 py-2 rounded-full border ${
+                        selectedSupplier === supplier.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                        selectedSupplier === supplier.id ? 'text-white' : 'text-slate-500'
+                      }`}>
+                        {supplier.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Warehouse Selection */}
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Warehouse *</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
+                  {warehouses.map((warehouse) => (
+                    <TouchableOpacity
+                      key={warehouse.id}
+                      onPress={() => setSelectedWarehouse(warehouse.id)}
+                      activeOpacity={0.8}
+                      className={`px-3.5 py-2 rounded-full border ${
+                        selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                        selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
+                      }`}>
+                        {warehouse.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
+              {/* Purchase Selection */}
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Linked Purchase (Optional)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 16 }}>
                   <TouchableOpacity
-                    key={supplier.id}
-                    onPress={() => setSelectedSupplier(supplier.id)}
-                    className={`mr-2 px-4 py-2 rounded-lg ${
-                      selectedSupplier === supplier.id ? 'bg-orange-500' : 'bg-slate-200'
+                    onPress={() => setSelectedPurchase(null)}
+                    activeOpacity={0.8}
+                    className={`px-3.5 py-2 rounded-full border ${
+                      selectedPurchase === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
                     }`}
                   >
-                    <Text className={`text-sm font-bold ${
-                      selectedSupplier === supplier.id ? 'text-white' : 'text-slate-700'
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedPurchase === null ? 'text-white' : 'text-slate-500'
                     }`}>
-                      {supplier.name}
+                      None
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
+                  {purchases.map((purchase) => (
+                    <TouchableOpacity
+                      key={purchase.id}
+                      onPress={() => setSelectedPurchase(purchase.id)}
+                      activeOpacity={0.8}
+                      className={`px-3.5 py-2 rounded-full border ${
+                        selectedPurchase === purchase.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
+                    >
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                        selectedPurchase === purchase.id ? 'text-white' : 'text-slate-500'
+                      }`}>
+                        {purchase.formatted_id || `PRCH-${purchase.id}`}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+            </GlassCard>
           )}
 
-          {/* Warehouse Selection */}
-          {!linkedPurchaseDetails && (
-            <View className="mb-4">
-              <Text className="text-sm font-bold text-slate-700 mb-2">Warehouse *</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {warehouses.map((warehouse) => (
-                  <TouchableOpacity
-                    key={warehouse.id}
-                    onPress={() => setSelectedWarehouse(warehouse.id)}
-                    className={`mr-2 px-4 py-2 rounded-lg ${
-                      selectedWarehouse === warehouse.id ? 'bg-orange-500' : 'bg-slate-200'
-                    }`}
-                  >
-                    <Text className={`text-sm font-bold ${
-                      selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-700'
-                    }`}>
-                      {warehouse.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Purchase Selection (Optional) */}
-          {!linkedPurchaseDetails && (
-            <View className="mb-4">
-              <Text className="text-sm font-bold text-slate-700 mb-2">Linked Purchase (Optional)</Text>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <TouchableOpacity
-                  onPress={() => setSelectedPurchase(null)}
-                  className={`mr-2 px-4 py-2 rounded-lg ${
-                    selectedPurchase === null ? 'bg-orange-500' : 'bg-slate-200'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${
-                    selectedPurchase === null ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    None
-                  </Text>
-                </TouchableOpacity>
-                {purchases.map((purchase) => (
-                  <TouchableOpacity
-                    key={purchase.id}
-                    onPress={() => setSelectedPurchase(purchase.id)}
-                    className={`mr-2 px-4 py-2 rounded-lg ${
-                      selectedPurchase === purchase.id ? 'bg-orange-500' : 'bg-slate-200'
-                    }`}
-                  >
-                    <Text className={`text-sm font-bold ${
-                      selectedPurchase === purchase.id ? 'text-white' : 'text-slate-700'
-                    }`}>
-                      {purchase.formatted_id || `PRCH-${purchase.id}`}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Return Date */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Return Date *</Text>
-            <TextInput
-              value={returnDate}
-              onChangeText={setReturnDate}
-              className="bg-white border-2 border-slate-200 rounded-lg px-4 py-3"
-              placeholder="YYYY-MM-DD"
-            />
-          </View>
-
-          {/* Refund Mode */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Refund Mode *</Text>
-            <View className="flex-row flex-wrap">
-              {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
-                <TouchableOpacity
-                  key={mode}
-                  onPress={() => handleRefundModeChange(mode)}
-                  className={`mr-2 mb-2 px-4 py-2 rounded-lg ${
-                    refundMode === mode ? 'bg-orange-500' : 'bg-slate-200'
-                  }`}
-                >
-                  <Text className={`text-sm font-bold ${
-                    refundMode === mode ? 'text-white' : 'text-slate-700'
-                  }`}>
-                    {mode}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-
-          {/* Cash Refund (only for CASH/CARD/UPI) */}
-          {refundMode !== 'CREDIT' && (
-            <View className="mb-4">
-              <Text className="text-sm font-bold text-slate-700 mb-2">
-                Cash Refund Amount {linkedPurchaseDetails && `(Max: ₹${maxRefundable.toFixed(2)})`}
-              </Text>
+          {/* Date & Refund Info Card */}
+          <GlassCard className="mb-4 p-4 gap-4">
+            {/* Return Date */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">Return Date *</Text>
               <TextInput
-                value={cashRefund}
-                onChangeText={handleCashRefundChange}
-                keyboardType="numeric"
-                className="bg-white border-2 border-slate-200 rounded-lg px-4 py-3"
-                placeholder="Enter refund amount"
+                value={returnDate}
+                onChangeText={setReturnDate}
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                placeholder="YYYY-MM-DD"
               />
             </View>
-          )}
 
-          {/* Current Return Summary */}
-          {returnItems.length > 0 && (
-            <View className="bg-slate-100 rounded-xl p-4 mb-4">
-              <Text className="text-slate-700 text-xs font-bold mb-2">Current Return Summary</Text>
-              <View className="flex-row justify-between mb-1">
-                <Text className="text-slate-600 text-xs">Return Value</Text>
-                <Text className="text-slate-900 text-xs font-bold">₹{calculateTotal().toFixed(2)}</Text>
-              </View>
-              {refundMode !== 'CREDIT' && (
-                <View className="flex-row justify-between mb-1">
-                  <Text className="text-slate-600 text-xs">Cash Refund</Text>
-                  <Text className="text-indigo-600 text-xs font-bold">₹{(Number(cashRefund) || 0).toFixed(2)}</Text>
-                </View>
-              )}
-              <View className="border-t border-slate-300 pt-1">
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-700 text-xs font-bold">Supplier Credit</Text>
-                  <Text className="text-orange-600 text-xs font-bold">₹{supplierCredit.toFixed(2)}</Text>
-                </View>
+            {/* Refund Mode */}
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1 font-bold">Refund Mode *</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    onPress={() => handleRefundModeChange(mode)}
+                    activeOpacity={0.8}
+                    className={`px-4 py-2 rounded-full border ${
+                      refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
+                  >
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
+                      refundMode === mode ? 'text-white' : 'text-slate-500'
+                    }`}>
+                      {mode}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
               </View>
             </View>
+
+            {/* Cash Refund */}
+            {refundMode !== 'CREDIT' && (
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">
+                  Refund Amount {linkedPurchaseDetails && `(Max: ₹${maxRefundable.toFixed(2)})`} *
+                </Text>
+                <TextInput
+                  value={cashRefund}
+                  onChangeText={handleCashRefundChange}
+                  keyboardType="numeric"
+                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  placeholder="Enter refund amount"
+                />
+              </View>
+            )}
+          </GlassCard>
+
+          {/* Current Return Summary Card */}
+          {returnItems.length > 0 && (
+            <GlassCard className="mb-4 bg-orange-500/5 border-orange-200/50">
+              <Text className="text-slate-700 text-[10px] font-black uppercase tracking-wider mb-2.5">Current Return Summary</Text>
+              <View className="gap-2 bg-white/80 border border-orange-100 rounded-2xl p-4">
+                <View className="flex-row justify-between">
+                  <Text className="text-slate-500 text-xs font-bold">Return Value</Text>
+                  <Text className="text-slate-800 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
+                </View>
+                {refundMode !== 'CREDIT' && (
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-500 text-xs font-bold">Cash Refund</Text>
+                    <Text className="text-indigo-600 text-xs font-black">₹{(Number(cashRefund) || 0).toFixed(2)}</Text>
+                  </View>
+                )}
+                <View className="border-t border-slate-100 pt-2.5 mt-1">
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-700 text-xs font-black uppercase tracking-wider">Supplier Credit</Text>
+                    <Text className="text-orange-600 text-xs font-black">₹{supplierCredit.toFixed(2)}</Text>
+                  </View>
+                </View>
+              </View>
+            </GlassCard>
           )}
 
-          {/* Return Items */}
-          <View className="mb-4">
-            <View className="flex-row justify-between items-center mb-2">
-              <Text className="text-sm font-bold text-slate-700">Return Items *</Text>
-              <TouchableOpacity onPress={addReturnItem} className="bg-orange-500 px-4 py-2 rounded-lg">
-                <Text className="text-white text-sm font-bold">+ Add Item</Text>
+          {/* Return Items Section */}
+          <GlassCard className="mb-4 p-4">
+            <View className="flex-row justify-between items-center mb-3">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">Return Items *</Text>
+              <TouchableOpacity 
+                onPress={addReturnItem}
+                activeOpacity={0.8}
+                className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"
+              >
+                <Text className="text-orange-600 text-[10px] font-black uppercase tracking-wider">+ Add Item</Text>
               </TouchableOpacity>
             </View>
 
             {returnItems.map((item, index) => (
-              <View key={index} className="bg-white border border-slate-200 rounded-lg p-4 mb-2">
-                <View className="flex-row justify-between items-start mb-3">
-                  <Text className="text-sm font-bold text-slate-700">Item {index + 1}</Text>
-                  <TouchableOpacity onPress={() => removeReturnItem(index)}>
-                    <Text className="text-red-500 text-sm font-bold">Remove</Text>
+              <View key={index} className="bg-slate-50/50 border border-slate-150 rounded-2xl p-4 mb-3">
+                <View className="flex-row justify-between items-center mb-3.5">
+                  <View className="bg-slate-200 px-2.5 py-1 rounded-lg">
+                    <Text className="text-slate-700 text-[10px] font-black uppercase tracking-wide">Item #{index + 1}</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => removeReturnItem(index)} activeOpacity={0.8}>
+                    <Text className="text-rose-500 text-[10px] font-black uppercase tracking-wider">✕ Remove</Text>
                   </TouchableOpacity>
                 </View>
 
                 {/* Product Name Display */}
                 {item.product_name && (
-                  <View className="bg-orange-50 border border-orange-200 rounded-lg px-3 py-2 mb-3">
-                    <Text className="text-sm font-bold text-orange-800">{item.product_name}</Text>
+                  <View className="bg-orange-50 border border-orange-100 rounded-xl p-3 mb-3">
+                    <Text className="text-orange-800 text-xs font-black uppercase">{item.product_name}</Text>
                     {item.max_quantity && (
-                      <Text className="text-orange-600 text-xs">Max returnable: {item.max_quantity}</Text>
+                      <Text className="text-orange-600 text-[10px] font-bold mt-0.5">Max returnable: {item.max_quantity} units</Text>
                     )}
                   </View>
                 )}
 
                 {/* Product ID Input */}
-                <View className="mb-2">
-                  <Text className="text-xs text-slate-500 mb-1 font-bold">Product ID *</Text>
+                <View className="mb-3">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Product ID *</Text>
                   <TextInput
                     value={item.product_id}
                     onChangeText={(text) => updateReturnItem(index, 'product_id', text)}
                     keyboardType="numeric"
-                    className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                     placeholder="Enter Product ID"
                   />
                 </View>
 
                 {/* Fields Row */}
-                <View className="flex-row gap-2 mb-2">
-                  <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Quantity *</Text>
+                <View className="flex-row gap-2 mb-3">
+                  <View className="flex-[1.2]">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Quantity *</Text>
                     <TextInput
                       value={item.quantity}
                       onChangeText={(text) => updateReturnItem(index, 'quantity', text)}
                       keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Qty"
                     />
                   </View>
-                  <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Unit Price *</Text>
+                  <View className="flex-[1.5]">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Unit Price *</Text>
                     <TextInput
                       value={item.unit_price}
                       onChangeText={(text) => updateReturnItem(index, 'unit_price', text)}
                       keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Price"
                     />
                   </View>
                   <View className="flex-1">
-                    <Text className="text-xs text-slate-500 mb-1 font-bold">Unit</Text>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Unit</Text>
                     <TextInput
                       value={item.unit}
                       onChangeText={(text) => updateReturnItem(index, 'unit', text)}
-                      className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                       placeholder="Unit"
                     />
                   </View>
@@ -660,39 +718,42 @@ export default function PurchaseReturnScreen() {
 
                 {/* Item Subtotal */}
                 {item.quantity && item.unit_price && (
-                  <View className="bg-slate-100 rounded-lg px-3 py-2">
-                    <Text className="text-slate-600 text-xs">
+                  <View className="bg-emerald-50 border border-emerald-100 rounded-xl px-3 py-2.5">
+                    <Text className="text-emerald-800 text-[10px] font-black uppercase tracking-wide">
                       Subtotal: ₹{(Number(item.quantity) * Number(item.unit_price)).toFixed(2)}
                     </Text>
                   </View>
                 )}
               </View>
             ))}
-          </View>
+          </GlassCard>
 
           {/* Notes */}
-          <View className="mb-4">
-            <Text className="text-sm font-bold text-slate-700 mb-2">Notes</Text>
+          <GlassCard className="mb-6 p-4">
+            <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Notes</Text>
             <TextInput
               value={notes}
               onChangeText={setNotes}
-              className="bg-white border-2 border-slate-200 rounded-lg px-4 py-3 h-24"
+              className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 h-24"
               placeholder="Enter notes (optional)"
               multiline
               textAlignVertical="top"
             />
-          </View>
+          </GlassCard>
 
           {/* Submit Button */}
           <TouchableOpacity
             onPress={handleSubmit}
             disabled={submitting}
-            className="bg-orange-500 rounded-xl py-4 items-center"
+            activeOpacity={0.8}
+            className="bg-orange-500 rounded-2xl py-4 shadow-lg flex-row items-center justify-center"
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#fff" size="small" />
             ) : (
-              <Text className="text-white font-bold text-lg">Process Purchase Return</Text>
+              <Text className="text-white text-center text-sm font-black uppercase tracking-wider">
+                Process Purchase Return
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>

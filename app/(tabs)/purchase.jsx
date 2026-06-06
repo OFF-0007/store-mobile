@@ -3,10 +3,9 @@
  * Similar to POS but for purchasing from suppliers.
  * Stock increases after purchase.
  */
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import {
   Alert,
-  Dimensions,
   ScrollView,
   Text,
   TextInput,
@@ -16,14 +15,24 @@ import {
   KeyboardAvoidingView,
   Platform,
   Modal,
+  RefreshControl,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMockStore } from "@/store/mockStore";
-import { GlassCard } from "@/components/ui";
+import { GlassCard, SkeletonLoader } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
-import { CameraView, useCameraPermissions } from "expo-camera";
-
+// Safely require expo-camera to prevent crash when native modules aren't compiled yet
+let CameraView = null;
+let useCameraPermissions = () => [null, () => { }];
+try {
+  const ExpoCamera = require("expo-camera");
+  CameraView = ExpoCamera.CameraView;
+  useCameraPermissions = ExpoCamera.useCameraPermissions;
+} catch (e) {
+  console.warn("expo-camera not loaded:", e);
+}
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 const fmt = (val) =>
   `₹${Number(val || 0).toLocaleString("en-IN", {
@@ -43,6 +52,7 @@ export default function PurchaseScreen() {
     products,
     suppliers,
     units,
+    categories,
     recordPurchase,
     fetchProducts,
     fetchSuppliers,
@@ -54,6 +64,13 @@ export default function PurchaseScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const insets = useSafeAreaInsets();
 
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([fetchProducts(), fetchSuppliers(), fetchUnits()]);
+    setRefreshing(false);
+  }, []);
+
   useEffect(() => {
     fetchProducts();
     fetchSuppliers();
@@ -61,6 +78,7 @@ export default function PurchaseScreen() {
   }, []);
 
   // ── States ─────────────────────────────────────────────────────────────────
+  const [selectedCategory, setSelectedCategory] = useState("All");
   const [cart, setCart] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
@@ -137,6 +155,14 @@ export default function PurchaseScreen() {
     console.log('Filtered Products Count:', filtered.length);
     return filtered;
   }, [products, searchQuery]);
+
+  // Quick Add (Filtered by category, up to 24 products)
+  const quickAddProducts = useMemo(() => {
+    return products.filter((p) => {
+      const matchCat = selectedCategory === "All" || p.category === selectedCategory;
+      return matchCat;
+    }).slice(0, 24);
+  }, [products, selectedCategory]);
 
   // ── Cart Operations ────────────────────────────────────────────────────────
   const addToCart = (product, qtyToAdd = 1) => {
@@ -259,6 +285,13 @@ export default function PurchaseScreen() {
 
   // ── Scanner Handlers ───────────────────────────────────────────────────────
   const handleScanPress = async () => {
+    if (!CameraView) {
+      Alert.alert(
+        "Scanner Unavailable",
+        "Camera scanning requires a rebuilt development client. Please run a new development build to compile the camera modules."
+      );
+      return;
+    }
     if (!permission?.granted) {
       const response = await requestPermission();
       if (!response.granted) {
@@ -445,45 +478,28 @@ export default function PurchaseScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
           style={{
-            flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
             backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 20,
-            minWidth: 44,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
-          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
 
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
-            📥 Buy
+            Purchase
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
             {selectedSupplierId ? `Supplier: ${supplierName}` : supplierName.trim() ? `New: ${supplierName}` : 'Purchase Terminal'}
           </Text>
         </View>
 
-        <TouchableOpacity
-          onPress={() => router.push('/inventory')}
-          style={{
-            backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 20,
-            minWidth: 44,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4
-          }}
-        >
-          <Text style={{ fontSize: 12 }}>📦</Text>
-          <Text style={{ color: '#fff', fontSize: 10, fontWeight: '800', letterSpacing: 0.5, textTransform: 'uppercase' }}>Stock</Text>
-        </TouchableOpacity>
+        {/* Spacer to balance the back button */}
+        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAvoidingView
@@ -495,9 +511,46 @@ export default function PurchaseScreen() {
           contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 24 }}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={["#f97316"]} />
+          }
         >
+          {/* Shortcuts Banner */}
+          <View className="mb-4 flex-row gap-2">
+            <TouchableOpacity
+              onPress={() => router.push('/inventory')}
+              activeOpacity={0.8}
+              className="flex-1 bg-white border border-slate-200 rounded-2xl p-3 flex-row items-center justify-between shadow-sm"
+            >
+              <View className="flex-row items-center gap-2.5">
+                <View className="w-8 h-8 rounded-xl bg-orange-100 items-center justify-center">
+                  <Ionicons name="cube-outline" size={16} color="#ea580c" />
+                </View>
+                <View>
+                  <Text className="text-slate-800 text-[10px] font-black uppercase tracking-wider">Inventory</Text>
+                  <Text className="text-slate-400 text-[9px] font-bold">Check stock</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={12} color="#94a3b8" />
+            </TouchableOpacity>
 
-          {/* Supplier and Payment Details */}
+            <TouchableOpacity
+              onPress={() => router.push('/purchase-return')}
+              activeOpacity={0.8}
+              className="flex-1 bg-white border border-slate-200 rounded-2xl p-3 flex-row items-center justify-between shadow-sm"
+            >
+              <View className="flex-row items-center gap-2.5">
+                <View className="w-8 h-8 rounded-xl bg-rose-100 items-center justify-center">
+                  <Ionicons name="arrow-undo-outline" size={16} color="#e11d48" />
+                </View>
+                <View>
+                  <Text className="text-slate-800 text-[10px] font-black uppercase tracking-wider">Return</Text>
+                  <Text className="text-slate-400 text-[9px] font-bold">Return items</Text>
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={12} color="#94a3b8" />
+            </TouchableOpacity>
+          </View>
 
           {/* Product Search */}
           <GlassCard className="mb-5 p-5">
@@ -505,24 +558,132 @@ export default function PurchaseScreen() {
               <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
                 Add Products
               </Text>
-              <TouchableOpacity
-                onPress={() => router.push('/purchase-return')}
-                className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"
-              >
-                <Text className="text-orange-600 text-[10px] font-bold uppercase tracking-wider">↩️ Return</Text>
-              </TouchableOpacity>
             </View>
-            <View className="flex-row gap-2">
-              <View className="flex-1">
+            <View className="flex-row gap-2 mb-4">
+              <View className="flex-1 relative">
                 <TextInput
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="Search Product..."
                   placeholderTextColor="#94a3b8"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  className="bg-white border-2 border-slate-200 rounded-2xl pl-4 pr-10 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                 />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => setSearchQuery("")}
+                    className="absolute right-3 top-4"
+                  >
+                    <Ionicons name="close-circle" size={18} color="#cbd5e1" />
+                  </TouchableOpacity>
+                )}
               </View>
-           
+              <TouchableOpacity
+                onPress={handleScanPress}
+                activeOpacity={0.8}
+                className="bg-orange-500 rounded-2xl px-5 justify-center items-center shadow-lg"
+              >
+                <Ionicons name="camera-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Categories & Quick Add Tags */}
+            <View className="mt-2">
+              <View className="flex-row items-center gap-1 mb-3">
+                <Ionicons name="grid-outline" size={12} color="#f97316" />
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Categories
+                </Text>
+              </View>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ gap: 8, paddingRight: 20 }}
+                className="mb-4"
+              >
+                <TouchableOpacity
+                  onPress={() => setSelectedCategory("All")}
+                  activeOpacity={0.8}
+                  className={`px-3 py-1.5 rounded-full border ${
+                    selectedCategory === "All"
+                      ? "bg-orange-500 border-orange-500"
+                      : "bg-slate-50 border-slate-200"
+                  }`}
+                >
+                  <Text
+                    className={`text-[10px] font-black uppercase tracking-wider ${
+                      selectedCategory === "All" ? "text-white" : "text-slate-500"
+                    }`}
+                  >
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {categories.map((cat) => (
+                  <TouchableOpacity
+                    key={cat}
+                    onPress={() => setSelectedCategory(cat)}
+                    activeOpacity={0.8}
+                    className={`px-3 py-1.5 rounded-full border ${
+                      selectedCategory === cat
+                        ? "bg-orange-500 border-orange-500"
+                        : "bg-slate-50 border-slate-200"
+                    }`}
+                  >
+                    <Text
+                      className={`text-[10px] font-black uppercase tracking-wider ${
+                        selectedCategory === cat ? "text-white" : "text-slate-500"
+                      }`}
+                    >
+                      {cat}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <View className="flex-row items-center gap-1 mb-3">
+                <Ionicons name="flame" size={12} color="#f97316" />
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest">
+                  Products ({quickAddProducts.length})
+                </Text>
+              </View>
+
+              {storeLoading ? (
+                <View className="flex-row gap-2">
+                  <SkeletonLoader height={36} width={100} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={120} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={90} className="rounded-xl" />
+                  <SkeletonLoader height={36} width={110} className="rounded-xl" />
+                </View>
+              ) : quickAddProducts.length > 0 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ gap: 8, paddingRight: 20 }}
+                >
+                  {quickAddProducts.map((p) => {
+                    const isInCart = cart.some((i) => i.product_id === p.id);
+                    return (
+                      <TouchableOpacity
+                        key={p.id}
+                        onPress={() => addToCart(p)}
+                        className={`px-4 py-2.5 rounded-xl border-2 flex-row items-center gap-2 ${
+                          isInCart ? "bg-orange-50 border-orange-300" : "bg-slate-50 border-slate-200"
+                        }`}
+                      >
+                        <Text className="text-xs font-bold text-slate-800 max-w-[120px]" numberOfLines={1}>
+                          {p.name}
+                        </Text>
+                        <Text className="text-xs font-black text-orange-500">
+                          ₹{Math.round(p.cost || p.price)}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              ) : (
+                <Text className="text-slate-400 text-[10px] italic font-bold ml-1">
+                  No products in this category
+                </Text>
+              )}
             </View>
           </GlassCard>
 
@@ -678,219 +839,223 @@ export default function PurchaseScreen() {
             )}
           </GlassCard>
 
-          <GlassCard className="mb-5 p-5">
-            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
-              Supplier & Payment Details
-            </Text>
-            <View className="gap-3">
-              {/* Supplier Input */}
-              <View className="relative">
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                  Supplier Name *
-                </Text>
-                <TextInput
-                  value={supplierSearch}
-                  onChangeText={handleSupplierInputChange}
-                  onFocus={() => setShowSupplierSuggestions(true)}
-                  placeholder="Search or Type Supplier Name..."
-                  placeholderTextColor="#94a3b8"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                />
+          {cart.length > 0 && (
+            <GlassCard className="mb-5 p-5">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+                Supplier & Payment Details
+              </Text>
+              <View className="gap-3">
+                {/* Supplier Input */}
+                <View className="relative">
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                    Supplier Name *
+                  </Text>
+                  <TextInput
+                    value={supplierSearch}
+                    onChangeText={handleSupplierInputChange}
+                    onFocus={() => setShowSupplierSuggestions(true)}
+                    placeholder="Search or Type Supplier Name..."
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
 
-                {/* Suggestions Overlay */}
-                {showSupplierSuggestions && filteredSuppliers.length > 0 && (
-                  <View className="absolute top-14 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
-                    {filteredSuppliers.map((s) => (
-                      <TouchableOpacity
-                        key={s.id}
-                        onPress={() => handleSelectSupplier(s)}
-                        className="p-3 border-b border-slate-50 flex-row justify-between items-center"
-                      >
-                        <View>
-                          <Text className="text-slate-800 font-bold text-xs">{s.name}</Text>
-                          {s.phone && <Text className="text-slate-400 text-[10px]">{s.phone}</Text>}
-                        </View>
-                        <Text className="text-slate-400 text-xs">➔</Text>
-                      </TouchableOpacity>
-                    ))}
+                  {/* Suggestions Overlay */}
+                  {showSupplierSuggestions && filteredSuppliers.length > 0 && (
+                    <View className="absolute top-14 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-40 overflow-y-auto">
+                      {filteredSuppliers.map((s) => (
+                        <TouchableOpacity
+                          key={s.id}
+                          onPress={() => handleSelectSupplier(s)}
+                          className="p-3 border-b border-slate-50 flex-row justify-between items-center"
+                        >
+                          <View>
+                            <Text className="text-slate-800 font-bold text-xs">{s.name}</Text>
+                            {s.phone && <Text className="text-slate-400 text-[10px]">{s.phone}</Text>}
+                          </View>
+                          <Text className="text-slate-400 text-xs">➔</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* Reference Number */}
+                <View>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                    Reference No (Optional)
+                  </Text>
+                  <TextInput
+                    value={refNo}
+                    onChangeText={setRefNo}
+                    placeholder="Enter Invoice/Reference Number..."
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
+                </View>
+
+                {/* Payment Methods – Segmented Switcher */}
+                <View>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                    Payment Method
+                  </Text>
+                  <View style={{
+                    flexDirection: 'row',
+                    backgroundColor: '#f1f5f9',
+                    borderRadius: 16,
+                    padding: 5,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                  }}>
+                    {PAYMENT_METHODS.map((method) => {
+                      const isActive = paymentMethod === method.key;
+                      return (
+                        <TouchableOpacity
+                          key={method.key}
+                          onPress={() => setPaymentMethod(method.key)}
+                          activeOpacity={0.8}
+                          style={[{
+                            flex: 1,
+                            paddingVertical: 12,
+                            borderRadius: 12,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 6,
+                          }, isActive && {
+                            backgroundColor: method.activeBg,
+                            shadowColor: method.shadowColor,
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.25,
+                            shadowRadius: 6,
+                            elevation: 4,
+                          }]}
+                        >
+                          <Text style={{ fontSize: 14 }}>{method.icon}</Text>
+                          <Text style={{
+                            fontSize: 11,
+                            fontWeight: '900',
+                            textTransform: 'uppercase',
+                            letterSpacing: 0.5,
+                            color: isActive ? '#fff' : '#64748b',
+                          }}>{method.label}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
                   </View>
-                )}
-              </View>
-
-              {/* Reference Number */}
-              <View>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                  Reference No (Optional)
-                </Text>
-                <TextInput
-                  value={refNo}
-                  onChangeText={setRefNo}
-                  placeholder="Enter Invoice/Reference Number..."
-                  placeholderTextColor="#94a3b8"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                />
-              </View>
-
-              {/* Payment Methods – Segmented Switcher */}
-              <View>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                  Payment Method
-                </Text>
-                <View style={{
-                  flexDirection: 'row',
-                  backgroundColor: '#f1f5f9',
-                  borderRadius: 16,
-                  padding: 5,
-                  borderWidth: 1,
-                  borderColor: '#e2e8f0',
-                }}>
-                  {PAYMENT_METHODS.map((method) => {
-                    const isActive = paymentMethod === method.key;
-                    return (
-                      <TouchableOpacity
-                        key={method.key}
-                        onPress={() => setPaymentMethod(method.key)}
-                        activeOpacity={0.8}
-                        style={[{
-                          flex: 1,
-                          paddingVertical: 12,
-                          borderRadius: 12,
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexDirection: 'row',
-                          gap: 6,
-                        }, isActive && {
-                          backgroundColor: method.activeBg,
-                          shadowColor: method.shadowColor,
-                          shadowOffset: { width: 0, height: 4 },
-                          shadowOpacity: 0.25,
-                          shadowRadius: 6,
-                          elevation: 4,
-                        }]}
-                      >
-                        <Text style={{ fontSize: 14 }}>{method.icon}</Text>
-                        <Text style={{
-                          fontSize: 11,
-                          fontWeight: '900',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
-                          color: isActive ? '#fff' : '#64748b',
-                        }}>{method.label}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
                 </View>
               </View>
-            </View>
-          </GlassCard>
+            </GlassCard>
+          )}
 
 
           {/* Checkout & Bill Summary */}
-          <GlassCard className="mb-8 p-5">
-            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
-              Checkout & Total
-            </Text>
+          {cart.length > 0 && (
+            <GlassCard className="mb-8 p-5">
+              <Text className="text-slate-800 font-black text-sm uppercase tracking-wider mb-4">
+                Checkout & Total
+              </Text>
 
-            <View className="gap-4">
-              {/* Summary */}
-              <View className="bg-slate-50 rounded-xl p-4 gap-2">
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs font-bold">Subtotal</Text>
-                  <Text className="text-slate-800 text-xs font-black">{fmt(subtotal)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs font-bold">Tax</Text>
-                  <Text className="text-slate-800 text-xs font-black">{fmt(taxAmount)}</Text>
-                </View>
-                <View className="flex-row justify-between">
-                  <Text className="text-slate-600 text-xs font-bold">Discount</Text>
-                  <Text className="text-green-600 text-xs font-black">-{fmt(discountTotal)}</Text>
-                </View>
-                <View className="border-t border-slate-200 pt-2 mt-2">
+              <View className="gap-4">
+                {/* Summary */}
+                <View className="bg-slate-50 rounded-xl p-4 gap-2">
                   <View className="flex-row justify-between">
-                    <Text className="text-slate-800 text-sm font-black">Grand Total</Text>
-                    <Text className="text-orange-500 text-lg font-black">{fmt(grandTotal)}</Text>
+                    <Text className="text-slate-600 text-xs font-bold">Subtotal</Text>
+                    <Text className="text-slate-800 text-xs font-black">{fmt(subtotal)}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-600 text-xs font-bold">Tax</Text>
+                    <Text className="text-slate-800 text-xs font-black">{fmt(taxAmount)}</Text>
+                  </View>
+                  <View className="flex-row justify-between">
+                    <Text className="text-slate-600 text-xs font-bold">Discount</Text>
+                    <Text className="text-green-600 text-xs font-black">-{fmt(discountTotal)}</Text>
+                  </View>
+                  <View className="border-t border-slate-200 pt-2 mt-2">
+                    <View className="flex-row justify-between">
+                      <Text className="text-slate-800 text-sm font-black">Grand Total</Text>
+                      <Text className="text-orange-500 text-lg font-black">{fmt(grandTotal)}</Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* Paid amount */}
-              <View>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
-                  Amount Paid
-                </Text>
-                <TextInput
-                  value={paidAmount}
-                  onChangeText={(val) => {
-                    setIsPaidAmountEdited(true);
-                    setPaidAmount(val);
-                  }}
-                  keyboardType="numeric"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
-                />
-              </View>
-
-              {/* Balance */}
-              {balanceOutstanding > 0 && (
-                <View className="flex-row justify-between items-center bg-amber-50 rounded-xl p-3 border border-amber-200">
-                  <Text className="text-amber-800 text-xs font-bold">Balance Due</Text>
-                  <Text className="text-amber-800 text-sm font-black">{fmt(balanceOutstanding)}</Text>
+                {/* Paid amount */}
+                <View>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                    Amount Paid
+                  </Text>
+                  <TextInput
+                    value={paidAmount}
+                    onChangeText={(val) => {
+                      setIsPaidAmountEdited(true);
+                      setPaidAmount(val);
+                    }}
+                    keyboardType="numeric"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 font-black text-sm focus:border-orange-400"
+                  />
                 </View>
-              )}
 
-              {/* Notes */}
-              <View>
-                <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
-                  Notes (Optional)
-                </Text>
-                <TextInput
-                  value={additionalNotes}
-                  onChangeText={setAdditionalNotes}
-                  placeholder="Add any notes..."
-                  placeholderTextColor="#94a3b8"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm focus:border-orange-400"
-                  multiline
-                  numberOfLines={2}
-                />
+                {/* Balance */}
+                {balanceOutstanding > 0 && (
+                  <View className="flex-row justify-between items-center bg-amber-50 rounded-xl p-3 border border-amber-200">
+                    <Text className="text-amber-800 text-xs font-bold">Balance Due</Text>
+                    <Text className="text-amber-800 text-sm font-black">{fmt(balanceOutstanding)}</Text>
+                  </View>
+                )}
+
+                {/* Notes */}
+                <View>
+                  <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2">
+                    Notes (Optional)
+                  </Text>
+                  <TextInput
+                    value={additionalNotes}
+                    onChangeText={setAdditionalNotes}
+                    placeholder="Add any notes..."
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm focus:border-orange-400"
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+
+                {/* Submit Button */}
+                <TouchableOpacity
+                  onPress={handleCheckoutSubmit}
+                  activeOpacity={0.8}
+                  className="bg-orange-500 rounded-2xl py-4 shadow-lg"
+                >
+                  <Text className="text-white text-center text-sm font-black uppercase tracking-wider">
+                    Complete Purchase
+                  </Text>
+                </TouchableOpacity>
               </View>
-
-              {/* Submit Button */}
-              <TouchableOpacity
-                onPress={handleCheckoutSubmit}
-                activeOpacity={0.8}
-                className="bg-orange-500 rounded-2xl py-4 shadow-lg"
-              >
-                <Text className="text-white text-center text-sm font-black uppercase tracking-wider">
-                  Complete Purchase
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </GlassCard>
+            </GlassCard>
+          )}
         </ScrollView>
-
-        {/* Floating Scanner Button */}
-        <TouchableOpacity
-          onPress={handleScanPress}
-          style={{
-            position: 'absolute',
-            bottom: 20,
-            right: 20,
-            backgroundColor: '#f97316',
-            borderRadius: 50,
-            width: 60,
-            height: 60,
-            justifyContent: 'center',
-            alignItems: 'center',
-            shadowColor: '#f97316',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.4,
-            shadowRadius: 8,
-            elevation: 8,
-            zIndex: 1000,
-          }}
-        >
-          <Text style={{ fontSize: 28 }}>📷</Text>
-        </TouchableOpacity>
+      {/* Floating Scanner FAB */}
+      <TouchableOpacity
+        onPress={handleScanPress}
+        activeOpacity={0.8}
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 20,
+          backgroundColor: '#f97316',
+          borderRadius: 28,
+          width: 56,
+          height: 56,
+          justifyContent: 'center',
+          alignItems: 'center',
+          shadowColor: '#ea580c',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 6,
+          elevation: 6,
+          zIndex: 999,
+        }}
+      >
+        <Ionicons name="scan-outline" size={24} color="#fff" />
+      </TouchableOpacity>
       </KeyboardAvoidingView>
 
       {/* Product Search Suggestions Modal */}

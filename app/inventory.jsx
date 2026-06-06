@@ -21,6 +21,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard } from "@/components/ui";
+import { Ionicons } from "@expo/vector-icons";
 
 const fmt = (val) =>
   `₹${Number(val || 0).toLocaleString("en-IN", {
@@ -134,22 +135,20 @@ export default function StockScreen() {
           onPress={() => router.back()}
           activeOpacity={0.7}
           style={{
-            flexDirection: 'row',
             alignItems: 'center',
+            justifyContent: 'center',
             backgroundColor: 'rgba(255,255,255,0.2)',
-            paddingHorizontal: 10,
-            paddingVertical: 6,
-            borderRadius: 20,
-            minWidth: 44,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
           }}
         >
-          <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', marginRight: 2 }}>‹</Text>
-          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '800', letterSpacing: 0.5 }}>Back</Text>
+          <Ionicons name="chevron-back" size={20} color="#fff" />
         </TouchableOpacity>
 
         <View style={{ alignItems: 'center', flex: 1 }}>
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>
-            📦 Inventory
+            Inventory
           </Text>
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>
             {products.length} products · {lowCount} low stock
@@ -157,7 +156,7 @@ export default function StockScreen() {
         </View>
 
         {/* Spacer to balance the back button */}
-        <View style={{ minWidth: 44 }} />
+        <View style={{ width: 36 }} />
       </View>
 
       <KeyboardAwareScrollView
@@ -168,338 +167,332 @@ export default function StockScreen() {
         extraScrollHeight={20}
       >
 
-          {/* Add New Product Section */}
-          <GlassCard className="mb-4 p-4">
-            <View className="flex-row justify-between items-center mb-3">
-              <Text className="text-slate-800 font-black text-xs uppercase tracking-wider">
-                1. Add New Product
+        {/* Add New Product Section */}
+        <GlassCard className="mb-5 p-5">
+          <View className="flex-row justify-between items-center mb-4">
+            <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
+              1. Add New Product
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowAddForm(!showAddForm)}
+              activeOpacity={0.8}
+              className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"
+            >
+              <Text className="text-orange-600 text-[10px] font-black uppercase tracking-wider">
+                {showAddForm ? "✕ Close" : "＋ Expand"}
               </Text>
+            </TouchableOpacity>
+          </View>
+
+          {showAddForm && (
+            <View className="gap-4">
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                  Product Name *
+                </Text>
+                <TextInput
+                  value={fname}
+                  onChangeText={setFname}
+                  placeholder="e.g. Basmati Rice 5kg"
+                  placeholderTextColor="#94a3b8"
+                  className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.name ? "border-rose-300" : "border-slate-200"
+                    }`}
+                />
+                {errors.name && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.name}</Text>}
+              </View>
+
+              <View className="flex-row gap-3">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    SKU *
+                  </Text>
+                  <TextInput
+                    value={fsku}
+                    onChangeText={setFsku}
+                    placeholder="GRN-RICE-5K"
+                    placeholderTextColor="#94a3b8"
+                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.sku ? "border-rose-300" : "border-slate-200"
+                      }`}
+                  />
+                  {errors.sku && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.sku}</Text>}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Barcode
+                  </Text>
+                  <TextInput
+                    value={fbarcode}
+                    onChangeText={setFbarcode}
+                    placeholder="Barcode no."
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
+                </View>
+              </View>
+
+              <View className="flex-row gap-3">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Category
+                  </Text>
+                  <TextInput
+                    value={fcategory}
+                    onChangeText={setFcategory}
+                    placeholder="e.g. Grains"
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Price ₹ *
+                  </Text>
+                  <TextInput
+                    value={fprice}
+                    onChangeText={setFprice}
+                    keyboardType="numeric"
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.price ? "border-rose-300" : "border-slate-200"
+                      }`}
+                  />
+                  {errors.price && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.price}</Text>}
+                </View>
+              </View>
+
+              <View className="flex-row gap-3">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Cost ₹
+                  </Text>
+                  <TextInput
+                    value={fcost}
+                    onChangeText={setFcost}
+                    keyboardType="numeric"
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Stock *
+                  </Text>
+                  <TextInput
+                    value={fstock}
+                    onChangeText={setFstock}
+                    keyboardType="numeric"
+                    placeholder="0"
+                    placeholderTextColor="#94a3b8"
+                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.stock ? "border-rose-300" : "border-slate-200"
+                      }`}
+                  />
+                  {errors.stock && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.stock}</Text>}
+                </View>
+              </View>
+
+              <View>
+                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                  Low Stock Alert (qty)
+                </Text>
+                <TextInput
+                  value={fthreshold}
+                  onChangeText={setFthreshold}
+                  keyboardType="numeric"
+                  placeholder="5"
+                  placeholderTextColor="#94a3b8"
+                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                />
+              </View>
+
               <TouchableOpacity
-                onPress={() => setShowAddForm(!showAddForm)}
-                activeOpacity={0.8}
+                onPress={handleSave}
+                activeOpacity={0.85}
+                className="mt-2 bg-orange-500 rounded-2xl py-4 shadow-lg"
               >
-                <Text className="text-orange-500 text-[10px] font-black uppercase tracking-wider">
-                  {showAddForm ? "✕ Close" : "＋ Expand"}
+                <Text className="text-white text-center text-sm font-black uppercase tracking-wider">
+                  Save Product
                 </Text>
               </TouchableOpacity>
             </View>
+          )}
+        </GlassCard>
 
-            {showAddForm && (
-              <View className="gap-3">
-                <View>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    Product Name *
-                  </Text>
-                  <TextInput
-                    value={fname}
-                    onChangeText={setFname}
-                    placeholder="e.g. Basmati Rice 5kg"
-                    placeholderTextColor="#94a3b8"
-                    className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.name ? "border-rose-300" : "border-slate-200"
-                      }`}
-                  />
-                  {errors.name && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.name}</Text>}
-                </View>
+        {/* Search & Filter Section */}
+        <GlassCard className="mb-5 p-5">
+          <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-4">
+            2. Search & Filter Products
+          </Text>
 
-                <View className="flex-row gap-3">
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      SKU *
-                    </Text>
-                    <TextInput
-                      value={fsku}
-                      onChangeText={setFsku}
-                      placeholder="GRN-RICE-5K"
-                      placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.sku ? "border-rose-300" : "border-slate-200"
-                        }`}
-                    />
-                    {errors.sku && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.sku}</Text>}
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Barcode
-                    </Text>
-                    <TextInput
-                      value={fbarcode}
-                      onChangeText={setFbarcode}
-                      placeholder="Barcode no."
-                      placeholderTextColor="#94a3b8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
-                    />
-                  </View>
-                </View>
-
-                <View className="flex-row gap-3">
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Category
-                    </Text>
-                    <TextInput
-                      value={fcategory}
-                      onChangeText={setFcategory}
-                      placeholder="e.g. Grains"
-                      placeholderTextColor="#94a3b8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Price ₹ *
-                    </Text>
-                    <TextInput
-                      value={fprice}
-                      onChangeText={setFprice}
-                      keyboardType="numeric"
-                      placeholder="0.00"
-                      placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.price ? "border-rose-300" : "border-slate-200"
-                        }`}
-                    />
-                    {errors.price && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.price}</Text>}
-                  </View>
-                </View>
-
-                <View className="flex-row gap-3">
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Cost ₹
-                    </Text>
-                    <TextInput
-                      value={fcost}
-                      onChangeText={setFcost}
-                      keyboardType="numeric"
-                      placeholder="0.00"
-                      placeholderTextColor="#94a3b8"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
-                    />
-                  </View>
-                  <View className="flex-1">
-                    <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                      Stock *
-                    </Text>
-                    <TextInput
-                      value={fstock}
-                      onChangeText={setFstock}
-                      keyboardType="numeric"
-                      placeholder="0"
-                      placeholderTextColor="#94a3b8"
-                      className={`bg-slate-50 border rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold ${errors.stock ? "border-rose-300" : "border-slate-200"
-                        }`}
-                    />
-                    {errors.stock && <Text className="text-rose-500 text-[9px] mt-1 ml-1">{errors.stock}</Text>}
-                  </View>
-                </View>
-
-                <View>
-                  <Text className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                    Low Stock Alert (qty)
-                  </Text>
-                  <TextInput
-                    value={fthreshold}
-                    onChangeText={setFthreshold}
-                    keyboardType="numeric"
-                    placeholder="5"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold"
-                  />
-                </View>
-
+          <View className="gap-3">
+            {/* Search Input */}
+            <View className="relative">
+              <TextInput
+                value={search}
+                onChangeText={setSearch}
+                placeholder="Search name, SKU, barcode…"
+                placeholderTextColor="#94a3b8"
+                className="bg-white border-2 border-slate-200 rounded-2xl pl-4 pr-10 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+              />
+              {search.length > 0 && (
                 <TouchableOpacity
-                  onPress={handleSave}
-                  activeOpacity={0.85}
-                  className="mt-2"
-                  style={{
-                    backgroundColor: "#f97316",
-                    borderRadius: 16,
-                    paddingVertical: 14,
-                    alignItems: "center",
-                    justifyContent: "center",
-                    shadowColor: "#ea580c",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.3,
-                    shadowRadius: 8,
-                    elevation: 6,
-                  }}
+                  onPress={() => setSearch("")}
+                  className="absolute right-3 top-4"
                 >
-                  <Text style={{ color: "#fff", fontWeight: "900", fontSize: 13, textTransform: "uppercase", letterSpacing: 1.2 }}>
-                    Save Product
-                  </Text>
+                  <Ionicons name="close-circle" size={18} color="#cbd5e1" />
                 </TouchableOpacity>
-              </View>
-            )}
-          </GlassCard>
+              )}
+            </View>
 
-          {/* Search & Filter Section */}
-          <GlassCard className="mb-4 p-4">
-            <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
-              2. Search & Filter Products
-            </Text>
-
-            <View className="gap-3">
-              {/* Search Input */}
-              <View className="flex-row items-center bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
-                <Text className="text-slate-400 mr-2">🔍</Text>
-                <TextInput
-                  value={search}
-                  onChangeText={setSearch}
-                  placeholder="Search name, SKU, barcode…"
-                  placeholderTextColor="#94a3b8"
-                  className="flex-1 text-slate-800 text-xs font-bold"
-                />
-                {search.length > 0 && (
-                  <TouchableOpacity onPress={() => setSearch("")}>
-                    <Text className="text-slate-500 px-1 text-xs font-bold">✕</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Category chips */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                className="mb-1"
-              >
-                {["All", ...categories].map((cat) => (
-                  <TouchableOpacity
-                    key={cat}
-                    onPress={() => setSelectedCat(cat)}
-                    className={`mr-2 px-3 py-1.5 rounded-full border ${selectedCat === cat
-                        ? "bg-orange-500 border-orange-500 shadow-sm"
-                        : "bg-white border-slate-200"
-                      }`}
-                  >
-                    <Text className={`text-[10px] font-black uppercase tracking-wide ${selectedCat === cat ? "text-white" : "text-slate-600"
-                      }`}>{cat}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Low stock toggle */}
-              <TouchableOpacity
-                onPress={() => setOnlyLowStock(!onlyLowStock)}
-                className={`self-start flex-row items-center px-3 py-1.5 rounded-full border gap-1.5 ${onlyLowStock
-                    ? "bg-amber-50 border-amber-300"
-                    : "bg-slate-100 border-slate-200"
-                  }`}
-              >
-                <Text className="text-sm">⚠️</Text>
-                <Text
-                  className={`text-[10px] font-black uppercase tracking-wide ${onlyLowStock ? "text-amber-800" : "text-slate-500"
+            {/* Category chips */}
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8, paddingRight: 20 }}
+              className="mb-1"
+            >
+              {["All", ...categories].map((cat) => (
+                <TouchableOpacity
+                  key={cat}
+                  onPress={() => setSelectedCat(cat)}
+                  activeOpacity={0.8}
+                  className={`px-3 py-1.5 rounded-full border ${selectedCat === cat
+                    ? "bg-orange-500 border-orange-500 shadow-sm"
+                    : "bg-slate-50 border-slate-200"
                     }`}
                 >
-                  {onlyLowStock
-                    ? `Low Stock Only (${lowCount})`
-                    : `Show Low Stock (${lowCount})`}
-                </Text>
-              </TouchableOpacity>
+                  <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedCat === cat ? "text-white" : "text-slate-500"
+                    }`}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            {/* Low stock toggle */}
+            <TouchableOpacity
+              onPress={() => setOnlyLowStock(!onlyLowStock)}
+              activeOpacity={0.8}
+              className={`self-start flex-row items-center px-4 py-2 rounded-full border gap-2 ${onlyLowStock
+                ? "bg-amber-50 border-amber-300"
+                : "bg-slate-50 border-slate-200"
+                }`}
+            >
+              <Ionicons name="alert-circle-outline" size={14} color={onlyLowStock ? "#ea580c" : "#64748b"} />
+              <Text
+                className={`text-[10px] font-black uppercase tracking-wide ${onlyLowStock ? "text-amber-800" : "text-slate-500"
+                  }`}
+              >
+                {onlyLowStock
+                  ? `Low Stock Only (${lowCount})`
+                  : `Show Low Stock (${lowCount})`}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </GlassCard>
+
+        {/* Product List Section */}
+        <GlassCard className="mb-8 p-4">
+          <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
+            3. Product Inventory ({filtered.length} items)
+          </Text>
+
+          {filtered.length === 0 ? (
+            <View className="py-12 items-center justify-center">
+              <Ionicons name="cube-outline" size={48} color="#94a3b8" />
+              <Text className="text-slate-500 font-bold text-xs uppercase tracking-wider mt-3">
+                No products found
+              </Text>
+              <Text className="text-slate-400 text-[10px] mt-1 text-center font-bold">
+                Adjust filters or add a new product.
+              </Text>
             </View>
-          </GlassCard>
-
-          {/* Product List Section */}
-          <GlassCard className="mb-8 p-4">
-            <Text className="text-slate-800 font-black text-xs uppercase tracking-wider mb-3">
-              3. Product Inventory ({filtered.length} items)
-            </Text>
-
-            {filtered.length === 0 ? (
-              <View className="py-12 items-center justify-center">
-                <Text className="text-4xl mb-3">📦</Text>
-                <Text className="text-slate-500 font-bold text-xs uppercase tracking-wide">
-                  No products found
-                </Text>
-                <Text className="text-slate-400 text-[10px] mt-1 text-center">
-                  Adjust filters or add a new product.
-                </Text>
-              </View>
-            ) : (
-              <View className="gap-3">
-                {filtered.map((p) => {
-                  const isLow = p.stock <= (p.low_stock_threshold ?? 5);
-                  const isOut = p.stock === 0;
-                  return (
-                    <TouchableOpacity
-                      key={p.id}
-                      onPress={() => setDetailProduct(p)}
-                      activeOpacity={0.8}
-                    >
-                      <View className="p-3 border border-slate-100 bg-slate-50/50 rounded-2xl">
-                        <View className="flex-row justify-between items-center">
-                          {/* Left info */}
-                          <View className="flex-1 pr-2">
-                            <View className="flex-row items-center gap-2 mb-0.5">
-                              <Text
-                                className="text-slate-800 font-black text-xs uppercase"
-                                numberOfLines={1}
-                              >
-                                {p.name}
-                              </Text>
-                              {isOut && (
-                                <View className="bg-rose-50 px-1.5 rounded">
-                                  <Text className="text-rose-700 text-[9px] font-black uppercase">
-                                    OUT
-                                  </Text>
-                                </View>
-                              )}
-                              {!isOut && isLow && (
-                                <View className="bg-amber-50 px-1.5 rounded">
-                                  <Text className="text-amber-700 text-[9px] font-black uppercase">
-                                    LOW
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                            <Text className="text-slate-400 text-[10px] font-bold">
-                              SKU: {p.sku}
+          ) : (
+            <View className="gap-3">
+              {filtered.map((p) => {
+                const isLow = p.stock <= (p.low_stock_threshold ?? 5);
+                const isOut = p.stock === 0;
+                return (
+                  <TouchableOpacity
+                    key={p.id}
+                    onPress={() => setDetailProduct(p)}
+                    activeOpacity={0.8}
+                  >
+                    <View className="p-3 border border-slate-100 bg-slate-50/50 rounded-2xl">
+                      <View className="flex-row justify-between items-center">
+                        {/* Left info */}
+                        <View className="flex-1 pr-2">
+                          <View className="flex-row items-center gap-2 mb-0.5">
+                            <Text
+                              className="text-slate-800 font-black text-xs uppercase"
+                              numberOfLines={1}
+                            >
+                              {p.name}
                             </Text>
-                            <View className="flex-row gap-2 mt-1.5 items-center">
-                              <View className="bg-slate-100 px-2 py-0.5 rounded-full">
-                                <Text className="text-slate-500 text-[10px] font-bold">
-                                  {p.category}
+                            {isOut && (
+                              <View className="bg-rose-50 px-1.5 rounded">
+                                <Text className="text-rose-700 text-[9px] font-black uppercase">
+                                  OUT
                                 </Text>
                               </View>
-                              <Text className="text-emerald-600 font-black text-xs">
-                                {fmt(p.price)}
+                            )}
+                            {!isOut && isLow && (
+                              <View className="bg-amber-50 px-1.5 rounded">
+                                <Text className="text-amber-700 text-[9px] font-black uppercase">
+                                  LOW
+                                </Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text className="text-slate-400 text-[10px] font-bold">
+                            SKU: {p.sku}
+                          </Text>
+                          <View className="flex-row gap-2 mt-1.5 items-center">
+                            <View className="bg-slate-100 px-2 py-0.5 rounded-full">
+                              <Text className="text-slate-500 text-[10px] font-bold">
+                                {p.category}
                               </Text>
                             </View>
-                          </View>
-
-                          {/* Right: stock + controls */}
-                          <View className="items-end gap-1.5">
-                            <Text
-                              className={`text-xs font-black ${isOut
-                                  ? "text-rose-600"
-                                  : isLow
-                                    ? "text-amber-600"
-                                    : "text-slate-700"
-                                }`}
-                            >
-                              {p.stock} {p.stock === 1 ? "unit" : "units"}
+                            <Text className="text-emerald-600 font-black text-xs">
+                              {fmt(p.price)}
                             </Text>
-                            <View className="flex-row border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                              <TouchableOpacity
-                                onPress={() => adjustStock(p.id, -1)}
-                                className="px-2.5 py-1 border-r border-slate-200 bg-slate-100 active:bg-slate-200"
-                              >
-                                <Text className="text-slate-800 font-bold text-xs">−</Text>
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                onPress={() => adjustStock(p.id, 1)}
-                                className="px-2.5 py-1 bg-slate-100 active:bg-slate-200"
-                              >
-                                <Text className="text-slate-800 font-bold text-xs">＋</Text>
-                              </TouchableOpacity>
-                            </View>
+                          </View>
+                        </View>
+
+                        {/* Right: stock + controls */}
+                        <View className="items-end gap-1.5">
+                          <Text
+                            className={`text-xs font-black ${isOut
+                              ? "text-rose-600"
+                              : isLow
+                                ? "text-amber-600"
+                                : "text-slate-700"
+                              }`}
+                          >
+                            {p.stock} {p.stock === 1 ? "unit" : "units"}
+                          </Text>
+                          <View className="flex-row border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
+                            <TouchableOpacity
+                              onPress={() => adjustStock(p.id, -1)}
+                              className="px-2.5 py-1 border-r border-slate-200 bg-slate-100 active:bg-slate-200"
+                            >
+                              <Text className="text-slate-800 font-bold text-xs">−</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => adjustStock(p.id, 1)}
+                              className="px-2.5 py-1 bg-slate-100 active:bg-slate-200"
+                            >
+                              <Text className="text-slate-800 font-bold text-xs">＋</Text>
+                            </TouchableOpacity>
                           </View>
                         </View>
                       </View>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-          </GlassCard>
-        </KeyboardAwareScrollView>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
+        </GlassCard>
+      </KeyboardAwareScrollView>
 
       {/* Product Detail Modal */}
       <Modal

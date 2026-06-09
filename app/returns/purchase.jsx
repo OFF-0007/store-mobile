@@ -15,7 +15,7 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import apiClient from "@/lib/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassCard, CardSkeleton } from "@/components/ui";
@@ -35,6 +35,7 @@ const fmt = (val) => `₹${Number(val || 0).toLocaleString("en-IN", { minimumFra
 
 export default function PurchaseReturnScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
 
   const [warehouses, setWarehouses] = useState([]);
@@ -47,11 +48,14 @@ export default function PurchaseReturnScreen() {
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [linkedPurchaseDetails, setLinkedPurchaseDetails] = useState(null);
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
-  const [refundMode, setRefundMode] = useState('CREDIT');
+  const [refundMode, setRefundMode] = useState('CASH');
   const [cashRefund, setCashRefund] = useState('');
+  const [cashRefundEdited, setCashRefundEdited] = useState(false);
   const [notes, setNotes] = useState('');
+  const [invoicePrefilled, setInvoicePrefilled] = useState(false);
 
   const [returnItems, setReturnItems] = useState([]);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
 
   // Barcode Scanner states
   const [showScanner, setShowScanner] = useState(false);
@@ -74,6 +78,24 @@ export default function PurchaseReturnScreen() {
     fetchInitialData();
   }, []);
 
+  useEffect(() => {
+    if (params?.invoice) {
+      setInvoiceSearch(params.invoice);
+      setInvoicePrefilled(true);
+
+      const amount = Number(params.refund_amount ?? params.refundAmount ?? 0);
+      if (!Number.isNaN(amount) && amount > 0) {
+        setRefundMode('CASH');
+        setCashRefund(amount.toString());
+        setCashRefundEdited(true);
+      }
+
+      fetchPurchaseDetails(params.invoice).catch(() => {
+        setInvoicePrefilled(false);
+      });
+    }
+  }, [params?.invoice, params?.refund_amount, params?.refundAmount]);
+
   const calculateTotalReturn = useCallback(() => {
     return returnItems.reduce((sum, item) => {
       const qty = Number(item.quantity) || 0;
@@ -85,17 +107,11 @@ export default function PurchaseReturnScreen() {
   useEffect(() => {
     if (linkedPurchaseDetails) {
       const returnTotalVal = calculateTotalReturn();
-      const newPurchaseVal = Math.max(0, summary.remaining_purchasable - returnTotalVal);
-      const currentMaxRefundable = Math.max(0, (summary.paid_amount - summary.prior_refunds_total) - newPurchaseVal);
-      setMaxRefundable(currentMaxRefundable);
-      
-      if (refundMode !== 'CREDIT') {
-        setCashRefund(currentMaxRefundable.toString());
-      } else {
-        setCashRefund('0');
+      if (!cashRefundEdited) {
+        setCashRefund(returnTotalVal.toString());
       }
     }
-  }, [returnItems, linkedPurchaseDetails, refundMode, summary, calculateTotalReturn]);
+  }, [returnItems, linkedPurchaseDetails, refundMode, calculateTotalReturn]);
 
   const fetchPurchaseDetails = async (purchaseIdOrRef) => {
     setFetchingInvoice(true);
@@ -110,16 +126,32 @@ export default function PurchaseReturnScreen() {
       setReturnDate(purchase.purchase_date);
       setSummary(purchase.summary);
 
-      const items = purchase.items ? purchase.items.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        quantity: '0',
-        unit_price: item.unit_price.toString(),
-        unit: item.unit || '',
-        max_quantity: item.quantity - item.returned_qty,
-        original_purchased: item.quantity,
-        already_returned: item.returned_qty,
-      })) : [];
+      const items = purchase.items ? purchase.items.map(item => {
+        const originalQty = item.quantity > 0 ? item.quantity : 1;
+        const remainingQty = (item.quantity || 0) - (item.returned_qty || 0);
+        const cost = item.unit_price || 0; // API returns cost as unit_price
+        const taxRate = item.tax_rate || 0;
+        const discountPerUnit = (item.discount || 0) / originalQty;
+        
+        // Compute true tax inclusive unit price matching how it was bought
+        const taxablePerUnit = cost - discountPerUnit;
+        const taxPerUnit = taxablePerUnit * (taxRate / 100);
+        const unitPriceWithTax = taxablePerUnit + taxPerUnit;
+
+        return {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: remainingQty > 0 ? remainingQty.toString() : "",
+          unit_price: unitPriceWithTax.toString(), // Tax inclusive price for UI calculations
+          cost: cost.toString(),
+          tax_rate: taxRate.toString(),
+          discount_per_unit: discountPerUnit.toString(),
+          unit: item.unit || '',
+          max_quantity: remainingQty,
+          original_purchased: item.quantity,
+          already_returned: item.returned_qty,
+        };
+      }) : [];
       
       setReturnItems(items);
     } catch (error) {
@@ -172,32 +204,50 @@ export default function PurchaseReturnScreen() {
     setShowScanner(true);
   };
 
+  const handleFetchByInvoice = () => {
+    if (!invoiceSearch.trim()) {
+      Alert.alert('Enter Invoice', 'Please type the invoice number before fetching.');
+      return;
+    }
+    fetchPurchaseDetails(invoiceSearch.trim());
+  };
+
   const updateReturnItem = (index, value) => {
-    const qty = parseFloat(value) || 0;
+    let cleaned = value.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+
+    const qty = parseFloat(cleaned) || 0;
     const max = returnItems[index].max_quantity;
     
     if (qty > max) {
       Alert.alert('Invalid Quantity', `Cannot return more than remaining items (${max})`);
+      const updated = [...returnItems];
+      updated[index].quantity = max.toString();
+      setReturnItems(updated);
       return;
     }
 
     const updated = [...returnItems];
-    updated[index].quantity = value;
+    updated[index].quantity = cleaned;
     setReturnItems(updated);
   };
 
   const handleCashRefundChange = (value) => {
-    let numVal = parseFloat(value) || 0;
+    setCashRefundEdited(true);
+    let cleaned = value.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+
+    const numVal = parseFloat(cleaned) || 0;
     const returnTotalVal = calculateTotalReturn();
     
-    // Cap refund by BOTH what is refundable (paid amount) and what is actually being returned (return total)
-    const absoluteMax = Math.min(maxRefundable, returnTotalVal);
-    
-    if (numVal > absoluteMax) {
-      numVal = absoluteMax;
+    // Only cap refund by what is actually being returned (return total)
+    if (numVal > returnTotalVal) {
+      setCashRefund(returnTotalVal.toString());
+    } else {
+      setCashRefund(cleaned);
     }
-    
-    setCashRefund(numVal.toString());
   };
 
   const handleSubmit = async () => {
@@ -215,6 +265,32 @@ export default function PurchaseReturnScreen() {
 
     setSubmitting(true);
     try {
+      const itemsPayload = itemsToReturn.map(item => {
+        const qty = Number(item.quantity);
+        const cost = Number(item.cost);
+        const taxRate = Number(item.tax_rate);
+        const discount = Number(item.discount_per_unit) * qty;
+        const taxableAmt = (qty * cost) - discount;
+        const tax = taxableAmt * (taxRate / 100);
+        const subtotal = taxableAmt + tax;
+
+        return {
+          product_id: item.product_id,
+          quantity: qty,
+          unit_price: cost, // Send cost as unit_price for backend compatibility
+          cost: cost,
+          tax_rate: taxRate,
+          tax: tax,
+          discount: discount,
+          subtotal: subtotal,
+          unit: item.unit || null,
+        };
+      });
+
+      const grossTotal = itemsPayload.reduce((sum, item) => sum + item.subtotal, 0);
+      const totalTaxable = itemsPayload.reduce((sum, item) => sum + ((item.quantity * item.cost) - item.discount), 0);
+      const totalTax = itemsPayload.reduce((sum, item) => sum + item.tax, 0);
+
       await apiClient.post('/purchase-returns', {
         supplier_id: selectedSupplier,
         warehouse_id: selectedWarehouse,
@@ -222,13 +298,11 @@ export default function PurchaseReturnScreen() {
         return_date: returnDate,
         refund_mode: refundMode,
         cash_refund: Number(cashRefund) || 0,
+        subtotal: totalTaxable,
+        tax_amount: totalTax,
+        grand_total: grossTotal,
         notes: notes,
-        items: itemsToReturn.map(item => ({
-          product_id: item.product_id,
-          quantity: Number(item.quantity),
-          unit_price: Number(item.unit_price),
-          unit: item.unit || null,
-        })),
+        items: itemsPayload,
       });
 
       Alert.alert('Success', 'Purchase return processed successfully', [
@@ -250,11 +324,26 @@ export default function PurchaseReturnScreen() {
       </View>
 
       <ScrollView className="flex-1" contentContainerStyle={{ padding: 16, paddingBottom: 48 }} keyboardShouldPersistTaps="handled">
-        {!linkedPurchaseDetails && !fetchingInvoice && (
-          <GlassCard className="mb-4 p-8 items-center border-dashed border-2 border-slate-300">
+        {!linkedPurchaseDetails && !fetchingInvoice && !invoicePrefilled && (
+          <GlassCard className="mb-4 p-6 border-dashed border-2 border-slate-300">
             <Ionicons name="scan-outline" size={48} color="#94a3b8" />
             <Text className="text-slate-500 font-black text-xs uppercase mt-4 text-center">Scan Purchase Barcode</Text>
             <TouchableOpacity onPress={handleOpenScanner} className="mt-6 bg-orange-500 px-8 py-3 rounded-2xl shadow-sm"><Text className="text-white font-black text-xs uppercase">Open Scanner</Text></TouchableOpacity>
+
+            <View className="mt-6 w-full">
+              <Text className="text-slate-500 text-[10px] font-black uppercase mb-2">Or enter invoice number</Text>
+              <TextInput
+                value={invoiceSearch}
+                onChangeText={setInvoiceSearch}
+                placeholder="Invoice no."
+                returnKeyType="done"
+                onSubmitEditing={handleFetchByInvoice}
+                className="w-full bg-slate-100 border border-slate-200 rounded-2xl px-3 py-3 text-sm text-slate-900"
+              />
+              <TouchableOpacity onPress={handleFetchByInvoice} className="mt-4 bg-slate-900 px-5 py-3 rounded-2xl items-center">
+                <Text className="text-white text-xs uppercase font-black">Fetch Invoice</Text>
+              </TouchableOpacity>
+            </View>
           </GlassCard>
         )}
 
@@ -284,17 +373,29 @@ export default function PurchaseReturnScreen() {
               <View>
                 <Text className="text-[10px] font-black text-slate-500 uppercase mb-2">Refund Mode *</Text>
                 <View className="flex-row flex-wrap gap-2">
-                  {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
-                    <TouchableOpacity key={mode} onPress={() => setRefundMode(mode)} className={`px-4 py-2 rounded-full border ${refundMode === mode ? 'bg-orange-500 border-orange-500' : 'bg-slate-50 border-slate-200'}`}><Text className={`text-[10px] font-black uppercase ${refundMode === mode ? 'text-white' : 'text-slate-500'}`}>{mode}</Text></TouchableOpacity>
+                  {['CASH', 'CARD', 'UPI'].map((mode) => (
+                    <TouchableOpacity
+                      key={mode}
+                      onPress={() => {
+                        setRefundMode(mode);
+                        setCashRefundEdited(false);
+                      }}
+                      className={`px-4 py-2 rounded-full border ${refundMode === mode ? 'bg-orange-500 border-orange-500' : 'bg-slate-50 border-slate-200'}`}>
+                      <Text className={`text-[10px] font-black uppercase ${refundMode === mode ? 'text-white' : 'text-slate-500'}`}>{mode}</Text>
+                    </TouchableOpacity>
                   ))}
                 </View>
               </View>
-              {refundMode !== 'CREDIT' && (
-                <View>
-                  <Text className="text-[10px] font-black text-slate-500 uppercase mb-2">Refund Amount (Max: {fmt(maxRefundable)}) *</Text>
-                  <TextInput value={cashRefund} onChangeText={handleCashRefundChange} keyboardType="numeric" className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold" />
-                </View>
-              )}
+                  <View>
+                    <Text className="text-[10px] font-black text-slate-500 uppercase mb-2">Refund Amount (Max: {fmt(maxRefundable)})</Text>
+                    <TextInput
+                      value={cashRefund}
+                      onChangeText={(value) => { setCashRefundEdited(true); handleCashRefundChange(value); }}
+                      keyboardType="numeric"
+                      placeholder="0"
+                      className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold"
+                    />
+                  </View>
             </GlassCard>
 
             <GlassCard className="mb-4 p-4">
@@ -336,8 +437,13 @@ export default function PurchaseReturnScreen() {
       <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)}>
         <SafeAreaView className="flex-1 bg-black">
           <View className="flex-row justify-between items-center p-6"><Text className="text-white font-black text-lg">Scan Invoice</Text><TouchableOpacity onPress={() => setShowScanner(false)}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity></View>
-          {CameraView && <CameraView style={{ flex: 1 }} onBarcodeScanned={handleBarcodeScanned} barcodeSettings={{ barcodeTypes: ["code128", "qr"] }} />}
-          <View className="p-10 items-center"><Text className="text-white/60 text-xs text-center">Point camera at the barcode on the bottom of the receipt</Text></View>
+          <View style={{ flex: 1, position: 'relative' }}>
+            {CameraView && <CameraView style={{ flex: 1 }} onBarcodeScanned={handleBarcodeScanned} barcodeSettings={{ barcodeTypes: ["code128", "qr"] }} />}
+            <View style={{ position: 'absolute', top: '25%', left: '12%', right: '12%', height: 220, borderWidth: 2, borderColor: '#f97316', borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.08)' }} pointerEvents="none" />
+            <View style={{ position: 'absolute', left: 0, right: 0, bottom: 32, alignItems: 'center' }}>
+              <Text className="text-white/80 text-[12px]">Place barcode inside the box</Text>
+            </View>
+          </View>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

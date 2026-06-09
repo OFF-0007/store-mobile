@@ -83,8 +83,8 @@ export default function ExpenseReportScreen() {
 
       <View className="bg-white border-b border-slate-100 p-4">
         <View className="flex-row gap-2">
-          <TextInput value={fromDate} onChangeText={setFromDate} placeholder="Start Date" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold" />
-          <TextInput value={toDate} onChangeText={setToDate} placeholder="End Date" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold" />
+          <TextInput placeholderTextColor="#94a3b8" value={fromDate} onChangeText={setFromDate} placeholder="Start Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
+          <TextInput placeholderTextColor="#94a3b8" value={toDate} onChangeText={setToDate} placeholder="End Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
         </View>
       </View>
 

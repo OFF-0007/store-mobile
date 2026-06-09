@@ -14,6 +14,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { useRouter } from "expo-router";
 import { GlassCard, CardSkeleton } from "@/components/ui";
 import apiClient from "@/lib/api/client";
+import { useMockStore } from "@/store/mockStore";
 import { useIsFocused } from "@react-navigation/native";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -21,7 +22,7 @@ const fmt = (val) => `₹${Number(val || 0).toLocaleString("en-IN", { minimumFra
 
 function SummaryCard({ label, value, accent, icon }) {
   return (
-    <View className={`flex-1 rounded-2xl p-3.5 ${accent} border border-slate-100 items-center justify-center shadow-sm`}>
+    <View style={{ width: '31%' }} className={`rounded-2xl p-3.5 ${accent} border border-slate-100 items-center justify-center shadow-sm`}>
       <View style={{ marginBottom: 6 }}>{icon}</View>
       <Text className="text-slate-800 text-sm font-black text-center" numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
       <Text className="text-slate-400 text-[8px] font-black uppercase tracking-widest text-center mt-1">{label}</Text>
@@ -53,6 +54,9 @@ export default function PurchaseReportScreen() {
   // Detail Modal States
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
   const [fetchingDetails, setFetchingDetails] = useState(false);
 
   const isFocused = useIsFocused();
@@ -70,6 +74,71 @@ export default function PurchaseReportScreen() {
       setShowDetailModal(false);
     } finally {
       setFetchingDetails(false);
+    }
+  };
+
+  const handleReceiveRefund = () => {
+    const availableRefund = Number(selectedPurchase?.summary?.refundable_amount || 0);
+    setRefundAmount(availableRefund > 0 ? availableRefund.toString() : '0');
+    setShowRefundModal(true);
+  };
+
+  const fetchDashboardMetrics = useMockStore((s) => s.fetchDashboardMetrics);
+  const confirmReceiveRefund = async () => {
+    const supplierId = selectedPurchase?.supplier?.id;
+    const amount = Number(refundAmount) || 0;
+    if (!supplierId || amount <= 0) {
+      Alert.alert('Invalid', 'Please enter a valid refund amount');
+      return;
+    }
+
+    setRefundSubmitting(true);
+    try {
+      await apiClient.post(`/suppliers/${supplierId}/receive-refund`, {
+        amount,
+        payment_method: 'Cash',
+        notes: `Refund for ${selectedPurchase?.formatted_id || selectedPurchase?.ref_no || `#${selectedPurchase?.id}`}`,
+        reference: selectedPurchase?.formatted_id || selectedPurchase?.ref_no || null,
+      });
+
+      setShowRefundModal(false);
+      // Optimistically zero-out the supplier credit balance so the button disappears.
+      // The exact remaining amount will be reloaded from the server via fetchReport().
+      setSelectedPurchase((prev) => {
+        if (!prev) return prev;
+        const prevSummary = prev.summary || {};
+        const newRefundable = Math.max(0, Number(prevSummary.refundable_amount || 0) - amount);
+        return {
+          ...prev,
+          summary: {
+            ...prevSummary,
+            refundable_amount: newRefundable,
+          },
+        };
+      });
+
+      // Also update list item if present
+      setData((prev) => {
+        if (!prev) return prev;
+        const purchases = (prev.purchases || []).map((p) => {
+          if (p.id === selectedPurchase?.id) {
+            return { ...p, paid_amount: (Number(p.paid_amount || p.paid || 0)) };
+          }
+          return p;
+        });
+        return { ...prev, purchases };
+      });
+
+      setShowDetailModal(false);
+      Alert.alert('Success', 'Refund recorded successfully');
+
+      // Refresh report list and dashboard metrics
+      fetchReport();
+      fetchDashboardMetrics();
+    } catch (err) {
+      Alert.alert('Error', err.response?.data?.message || err.message || 'Failed to record refund');
+    } finally {
+      setRefundSubmitting(false);
     }
   };
 
@@ -122,8 +191,8 @@ export default function PurchaseReportScreen() {
 
       <View className="bg-white border-b border-slate-100 p-4">
         <View className="flex-row gap-2">
-          <TextInput value={fromDate} onChangeText={setFromDate} placeholder="Start Date" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold" />
-          <TextInput value={toDate} onChangeText={setToDate} placeholder="End Date" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold" />
+          <TextInput placeholderTextColor="#94a3b8" value={fromDate} onChangeText={setFromDate} placeholder="Start Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
+          <TextInput placeholderTextColor="#94a3b8" value={toDate} onChangeText={setToDate} placeholder="End Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
         </View>
       </View>
 
@@ -136,28 +205,40 @@ export default function PurchaseReportScreen() {
         {isExpanded && data?.summary && (
           <View className="flex-row flex-wrap gap-2 mb-4">
             <SummaryCard 
-              label="Gross Billed" 
+              label="Gross Purchase" 
               value={fmt(data.summary.total_amount)} 
-              icon={<Ionicons name="cart-outline" size={16} color="#f97316" />} 
-              accent="bg-orange-50/50" 
+              icon={<Ionicons name="cart-outline" size={16} color="#475569" />} 
+              accent="bg-slate-50/50" 
             />
             <SummaryCard 
               label="Purchase Return" 
-              value={fmt(data.summary.total_returns || 0)} 
-              icon={<Ionicons name="refresh-outline" size={16} color="#ef4444" />} 
-              accent="bg-rose-50/50" 
+              value={fmt(data.summary.total_returned)} 
+              icon={<Ionicons name="refresh-outline" size={16} color="#e11d48" />} 
+              accent="bg-rose-50/50 border-l-2 border-l-rose-400" 
             />
             <SummaryCard 
               label="Net Purchase" 
-              value={fmt(data.summary.net_purchase || (data.summary.total_amount - (data.summary.total_returns || 0)))} 
-              icon={<Ionicons name="calculator-outline" size={16} color="#10b981" />} 
-              accent="bg-emerald-50/50" 
+              value={fmt(data.summary.net_purchase)} 
+              icon={<Ionicons name="calculator-outline" size={16} color="#475569" />} 
+              accent="bg-slate-50/50 border-l-2 border-l-slate-400" 
+            />
+            <SummaryCard 
+              label="Total Paid" 
+              value={fmt(data.summary.total_paid)} 
+              icon={<Ionicons name="wallet-outline" size={16} color="#1d4ed8" />} 
+              accent="bg-blue-50/50 border-l-2 border-l-blue-400" 
+            />
+            <SummaryCard 
+              label="Refund Received" 
+              value={fmt(data.summary.refund_received)} 
+              icon={<Ionicons name="download-outline" size={16} color="#4f46e5" />} 
+              accent="bg-indigo-50/50 border-l-2 border-l-indigo-400" 
             />
             <SummaryCard 
               label="Net Paid" 
-              value={fmt(data.summary.total_paid)} 
-              icon={<Ionicons name="wallet-outline" size={16} color="#6366f1" />} 
-              accent="bg-indigo-50/50" 
+              value={fmt(data.summary.net_paid)} 
+              icon={<Ionicons name="checkmark-circle-outline" size={16} color="#059669" />} 
+              accent="bg-emerald-50/50 border-l-2 border-l-emerald-400" 
             />
           </View>
         )}
@@ -194,19 +275,22 @@ export default function PurchaseReportScreen() {
                     <Text className="text-slate-300 text-[9px]">•</Text>
                     <Text className="text-slate-400 text-[9px] font-bold">{p.purchase_date}</Text>
                   </View>
+                  <Text className="text-slate-500 text-[8px] font-black uppercase mt-1">
+                    {(p.payment_status || p.accounting_status || "Paid")}
+                  </Text>
                 </View>
 
                 <View className="w-20 items-end">
                   <Text className="text-slate-800 text-xs font-black">{p.items_count || 0} Items</Text>
-                  {p.return_amount > 0 && (
-                    <Text className="text-rose-500 text-[9px] font-bold mt-0.5">Ret: {fmt(p.return_amount)}</Text>
+                  {(p.total_returned || p.return_amount) > 0 && (
+                    <Text className="text-rose-500 text-[9px] font-bold mt-0.5">Ret: {fmt(p.total_returned ?? p.return_amount)}</Text>
                   )}
                 </View>
 
                 <View className="w-20 items-end">
-                  <Text className="text-emerald-700 text-xs font-black">{fmt(p.paid_amount)}</Text>
+                  <Text className="text-emerald-700 text-xs font-black">{fmt(p.net_paid ?? p.paid_amount ?? p.paid)}</Text>
                   <View className="mt-0.5">
-                    <Badge status={p.payment_status || "Paid"} />
+                    <Badge status={p.payment_status || p.accounting_status || "Paid"} />
                   </View>
                 </View>
               </TouchableOpacity>
@@ -253,6 +337,15 @@ export default function PurchaseReportScreen() {
                     <View className="mt-1"><Badge status={selectedPurchase.payment_status || "Completed"} /></View>
                   </View>
                 </View>
+
+                {selectedPurchase?.summary?.refundable_amount > 0 && (
+                  <TouchableOpacity
+                    onPress={handleReceiveRefund}
+                    className="mb-4 bg-emerald-600 rounded-3xl px-4 py-3 items-center"
+                  >
+                    <Text className="text-white text-xs font-black uppercase">Receive Refund</Text>
+                  </TouchableOpacity>
+                )}
 
                 {/* Info Grid */}
                 <View className="flex-row flex-wrap gap-4 mb-6">
@@ -324,17 +417,104 @@ export default function PurchaseReportScreen() {
                   </View>
                   <View className="flex-row justify-between mt-1">
                     <Text className="text-emerald-700 text-[10px] font-black uppercase">Paid Amount</Text>
-                    <Text className="text-emerald-700 text-xs font-black">{fmt(selectedPurchase.paid_amount)}</Text>
+                    <Text className="text-emerald-700 text-xs font-black">{fmt(selectedPurchase.summary?.paid_amount ?? selectedPurchase.paid_amount)}</Text>
                   </View>
-                  {selectedPurchase.grand_total > selectedPurchase.paid_amount && (
+                  {selectedPurchase.summary?.prior_returns_total > 0 && (
                     <View className="flex-row justify-between mt-1">
-                      <Text className="text-rose-600 text-[10px] font-black uppercase">Balance Due</Text>
-                      <Text className="text-rose-600 text-xs font-black">{fmt(selectedPurchase.grand_total - selectedPurchase.paid_amount)}</Text>
+                      <Text className="text-rose-600 text-[10px] font-black uppercase">Returned Total</Text>
+                      <Text className="text-rose-600 text-xs font-black">{fmt(selectedPurchase.summary.prior_returns_total)}</Text>
+                    </View>
+                  )}
+                  {selectedPurchase.summary?.prior_refunds_total > 0 && (
+                    <View className="flex-row justify-between mt-1">
+                      <Text className="text-rose-600 text-[10px] font-black uppercase">Refund Received</Text>
+                      <Text className="text-rose-600 text-xs font-black">{fmt(selectedPurchase.summary.prior_refunds_total)}</Text>
+                    </View>
+                  )}
+                  {selectedPurchase.summary?.outstanding_dues > 0 && (
+                    <View className="flex-row justify-between mt-1">
+                      <Text className="text-rose-600 text-[10px] font-black uppercase">Outstanding</Text>
+                      <Text className="text-rose-600 text-xs font-black">{fmt(selectedPurchase.summary.outstanding_dues)}</Text>
                     </View>
                   )}
                 </View>
               </ScrollView>
             ) : null}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showRefundModal} animationType="fade" transparent={true} onRequestClose={() => setShowRefundModal(false)}>
+        <View className="flex-1 bg-black/40 justify-center px-6">
+          <View className="bg-white rounded-3xl p-6 shadow-2xl border border-slate-200">
+            <Text className="text-slate-900 text-lg font-black mb-3">Receive Refund</Text>
+            <Text className="text-slate-500 text-sm mb-4">
+              This supplier has a credit balance — they owe you money from a return or overpayment. Record the amount they pay you here to settle that credit.
+            </Text>
+
+            <View className="bg-slate-50 rounded-2xl border border-slate-200 p-4 mb-4">
+              <Text className="text-slate-500 text-[10px] uppercase tracking-[1px] mb-2">Invoice</Text>
+              <Text className="text-slate-900 text-base font-black">{selectedPurchase?.formatted_id || selectedPurchase?.ref_no || `#${selectedPurchase?.id}`}</Text>
+              <Text className="text-slate-400 text-[11px] mt-2">Supplier: {selectedPurchase?.supplier?.name || 'Unknown'}</Text>
+            </View>
+
+            <View className="mb-4">
+              <Text className="text-slate-500 text-[10px] uppercase tracking-[1px] mb-2">Amount to receive</Text>
+              <TextInput
+                value={refundAmount}
+                onChangeText={(value) => {
+                  const cleaned = value.replace(/[^0-9.]/g, '');
+                  if (cleaned === '' || cleaned === '.') {
+                    setRefundAmount(cleaned);
+                    return;
+                  }
+                  const parsed = parseFloat(cleaned) || 0;
+                  const availableRefund = Number(selectedPurchase?.summary?.refundable_amount || 0);
+                  const capped = parsed > availableRefund ? availableRefund : parsed;
+                  setRefundAmount(capped.toString());
+                }}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                className="bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 text-sm font-bold"
+              />
+            </View>
+
+            <View className="space-y-3 mb-5">
+              <View className="flex-row justify-between">
+                <Text className="text-slate-500 text-[11px]">Supplier credit balance</Text>
+                <Text className="text-indigo-600 text-sm font-black">
+                  {fmt(Number(selectedPurchase?.summary?.refundable_amount || 0))}
+                </Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-slate-500 text-[11px]">Receiving now</Text>
+                <Text className="text-slate-900 text-sm font-black">{fmt(Number(refundAmount) || 0)}</Text>
+              </View>
+              <View className="flex-row justify-between">
+                <Text className="text-slate-500 text-[11px]">Pending refund amount</Text>
+                <Text className="text-rose-600 text-sm font-black">
+                  {fmt(
+                    Math.max(
+                      0,
+                      Number(selectedPurchase?.summary?.refundable_amount || 0) - (Number(refundAmount) || 0)
+                    )
+                  )}
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row gap-3">
+              <TouchableOpacity onPress={() => setShowRefundModal(false)} disabled={refundSubmitting} className="flex-1 bg-slate-100 rounded-2xl px-4 py-3 items-center">
+                <Text className="text-slate-700 text-xs font-black uppercase">Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={confirmReceiveRefund} disabled={refundSubmitting} className={`flex-1 rounded-2xl px-4 py-3 items-center ${refundSubmitting ? 'bg-emerald-300' : 'bg-emerald-600'}`}>
+                {refundSubmitting ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text className="text-white text-xs font-black uppercase">Proceed</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

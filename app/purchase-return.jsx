@@ -35,7 +35,7 @@ export default function PurchaseReturnScreen() {
   const [selectedPurchase, setSelectedPurchase] = useState(null);
   const [linkedPurchaseDetails, setLinkedPurchaseDetails] = useState(null);
   const [returnDate, setReturnDate] = useState(new Date().toISOString().split('T')[0]);
-  const [refundMode, setRefundMode] = useState('CREDIT');
+  const [refundMode, setRefundMode] = useState('CASH');
   const [cashRefund, setCashRefund] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -90,15 +90,18 @@ export default function PurchaseReturnScreen() {
       setSelectedWarehouse(purchase.warehouse?.id);
 
       // Set return items from purchase items
-      const items = purchase.items ? purchase.items.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        quantity: item.quantity.toString(),
-        unit_price: item.unit_price.toString(),
-        unit: item.unit || '',
-        max_quantity: item.quantity, // Store max for validation
-        subtotal: item.subtotal,
-      })) : [];
+      const items = purchase.items ? purchase.items.map(item => {
+        const remainingQty = (item.quantity || 0) - (item.returned_qty || 0);
+        return {
+          product_id: item.product_id?.toString() || '',
+          product_name: item.product_name,
+          quantity: remainingQty > 0 ? remainingQty.toString() : '',
+          unit_price: item.unit_price?.toString() || '',
+          unit: item.unit || '',
+          max_quantity: remainingQty, // Store max for validation
+          subtotal: item.subtotal,
+        };
+      }) : [];
       
       setReturnItems(items);
     } catch (error) {
@@ -151,37 +154,26 @@ export default function PurchaseReturnScreen() {
       const remainingPurchasableVal = gross - priorRetTotal;
       
       const returnTotalVal = calculateTotal();
-      const newPurchaseVal = (gross - priorRetTotal) - returnTotalVal;
-      const currentMaxRefundable = Math.max(0, (paid - priorRefTotal) - Math.max(0, newPurchaseVal));
-      
-      let credit = 0;
-      if (refundMode === 'CREDIT') {
-        credit = returnTotalVal;
-      } else {
-        const actualRefund = Number(cashRefund || 0);
-        credit = Math.max(0, returnTotalVal - actualRefund);
-      }
+      const credit = Math.max(0, returnTotalVal - Number(cashRefund || 0));
 
       setPurchaseTotal(gross);
       setPaidAmount(paid);
       setPriorReturnsTotal(priorRetTotal);
       setPriorRefundsTotal(priorRefTotal);
       setOutstandingDues(outstanding);
-      setMaxRefundable(currentMaxRefundable);
       setSupplierCredit(credit);
       setRemainingPurchasable(remainingPurchasableVal);
 
-      // Auto-cap refund amount
+      // Auto-cap refund amount by return total only
       if (['CASH', 'CARD', 'UPI'].includes(refundMode)) {
         const currentRefund = Number(cashRefund || 0);
-        if (currentRefund > currentMaxRefundable) {
-          setCashRefund(currentMaxRefundable.toString());
+        if (currentRefund > returnTotalVal) {
+          setCashRefund(returnTotalVal.toString());
         }
       }
     } else {
       // No linked purchase - simple calculation
       const returnTotalVal = calculateTotal();
-      setMaxRefundable(returnTotalVal);
       
       if (['CASH', 'CARD', 'UPI'].includes(refundMode)) {
         const currentRefund = Number(cashRefund || 0);
@@ -206,20 +198,19 @@ export default function PurchaseReturnScreen() {
   };
 
   const handleCashRefundChange = (value) => {
-    let numVal = Number(value) || 0;
+    setCashRefundEdited(true);
+    let cleaned = value.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+
+    const numVal = parseFloat(cleaned) || 0;
     const returnTotalVal = calculateTotal();
     
-    if (linkedPurchaseDetails) {
-      if (numVal > maxRefundable) {
-        numVal = maxRefundable;
-      }
+    if (numVal > returnTotalVal) {
+      setCashRefund(returnTotalVal.toString());
     } else {
-      if (numVal > returnTotalVal) {
-        numVal = returnTotalVal;
-      }
+      setCashRefund(cleaned);
     }
-    
-    setCashRefund(numVal.toString());
   };
 
   const addReturnItem = () => {
@@ -235,7 +226,14 @@ export default function PurchaseReturnScreen() {
 
   const updateReturnItem = (index, field, value) => {
     const updated = [...returnItems];
-    updated[index][field] = value;
+    if (field === 'quantity') {
+      let cleaned = value.replace(/[^0-9.]/g, '');
+      const parts = cleaned.split('.');
+      if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+      updated[index][field] = cleaned;
+    } else {
+      updated[index][field] = value;
+    }
     setReturnItems(updated);
   };
 
@@ -576,7 +574,7 @@ export default function PurchaseReturnScreen() {
             <View>
               <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1 font-bold">Refund Mode *</Text>
               <View className="flex-row flex-wrap gap-2">
-                {['CREDIT', 'CASH', 'CARD', 'UPI'].map((mode) => (
+                {['CASH', 'CARD', 'UPI'].map((mode) => (
                   <TouchableOpacity
                     key={mode}
                     onPress={() => handleRefundModeChange(mode)}
@@ -596,7 +594,6 @@ export default function PurchaseReturnScreen() {
             </View>
 
             {/* Cash Refund */}
-            {refundMode !== 'CREDIT' && (
               <View>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">
                   Refund Amount {linkedPurchaseDetails && `(Max: ₹${maxRefundable.toFixed(2)})`} *
@@ -609,7 +606,6 @@ export default function PurchaseReturnScreen() {
                   placeholder="Enter refund amount"
                 />
               </View>
-            )}
           </GlassCard>
 
           {/* Current Return Summary Card */}
@@ -621,12 +617,10 @@ export default function PurchaseReturnScreen() {
                   <Text className="text-slate-500 text-xs font-bold">Return Value</Text>
                   <Text className="text-slate-800 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
                 </View>
-                {refundMode !== 'CREDIT' && (
                   <View className="flex-row justify-between">
                     <Text className="text-slate-500 text-xs font-bold">Cash Refund</Text>
                     <Text className="text-indigo-600 text-xs font-black">₹{(Number(cashRefund) || 0).toFixed(2)}</Text>
                   </View>
-                )}
                 <View className="border-t border-slate-100 pt-2.5 mt-1">
                   <View className="flex-row justify-between">
                     <Text className="text-slate-700 text-xs font-black uppercase tracking-wider">Supplier Credit</Text>

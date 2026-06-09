@@ -170,6 +170,13 @@ export default function SettingsScreen() {
               subtitle="Update password, email & credentials"
               onPress={() => router.push("/settings/profile")}
             />
+            <AccountListItem
+              icon="cube-outline"
+              iconBg="bg-emerald-600"
+              title="Warehouse Creation"
+              subtitle="Create & manage warehouse locations"
+              onPress={() => router.push("/settings/warehouse")}
+            />
           </GlassCard>
         </View>
 

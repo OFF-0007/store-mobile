@@ -176,22 +176,8 @@ export default function SalesReportScreen() {
 
       <View className="bg-white border-b border-slate-100 p-4">
         <View className="flex-row gap-2 mb-3">
-          <View className="flex-1">
-            <TextInput
-              value={fromDate}
-              onChangeText={setFromDate}
-              placeholder="Start Date (YYYY-MM-DD)"
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
-            />
-          </View>
-          <View className="flex-1">
-            <TextInput
-              value={toDate}
-              onChangeText={setToDate}
-              placeholder="End Date (YYYY-MM-DD)"
-              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold"
-            />
-          </View>
+          <TextInput placeholderTextColor="#94a3b8" value={fromDate} onChangeText={setFromDate} placeholder="Start Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
+          <TextInput placeholderTextColor="#94a3b8" value={toDate} onChangeText={setToDate} placeholder="End Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
         </View>
       </View>
 

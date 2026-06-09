@@ -18,7 +18,7 @@ const fmt = (val) =>
   `₹${Number(val || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // ── Stat card ─────────────────────────────────────────────────────────────────
-function StatCard({ title, value, icon, colorClass = "orange" }) {
+function StatCard({ title, value, icon, colorClass = "orange", subLabel, subValue }) {
   const bgColors = {
     orange: "bg-orange-50",
     emerald: "bg-emerald-50",
@@ -46,6 +46,9 @@ function StatCard({ title, value, icon, colorClass = "orange" }) {
       >
         {value}
       </Text>
+      {subLabel && subValue ? (
+        <Text className="text-slate-500 text-[11px] font-semibold mt-2">{subLabel}: {subValue}</Text>
+      ) : null}
     </View>
   );
 }
@@ -218,7 +221,14 @@ export default function HomeScreen() {
         <View className="flex-row flex-wrap justify-between mb-4">
           <StatCard title="Revenue" value={fmt(metrics.totalSalesBilled)} icon={<Feather name="trending-up" size={18} color="#10b981" />} colorClass="emerald" />
           <StatCard title="Cash In" value={fmt(metrics.totalSalesReceived)} icon={<Feather name="dollar-sign" size={18} color="#3b82f6" />} colorClass="blue" />
-          <StatCard title="Purchases" value={fmt(metrics.totalPurchasesBilled)} icon={<Feather name="shopping-bag" size={18} color="#f97316" />} colorClass="orange" />
+          <StatCard
+            title="Purchases"
+            value={fmt(metrics.totalPurchasesBilled)}
+            icon={<Feather name="shopping-bag" size={18} color="#f97316" />}
+            colorClass="orange"
+            subLabel="Returned"
+            subValue={metrics.totalPurchaseReturns > 0 ? fmt(metrics.totalPurchaseReturns) : undefined}
+          />
           <StatCard title="Expenses" value={fmt(metrics.totalExpenses)} icon={<Feather name="file-text" size={18} color="#f43f5e" />} colorClass="rose" />
         </View>
 

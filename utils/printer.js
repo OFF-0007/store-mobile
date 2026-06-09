@@ -23,9 +23,9 @@ const ESC = {
 };
 
 /**
- * Format receipt text for 58mm printer (approx 31 characters per line to avoid wrapping)
+ * Format receipt text for 48mm printer (approx 24 characters per line to avoid wrapping)
  */
-export function formatReceipt58mm(sale) {
+export function formatReceipt48mm(sale) {
   let commands = "";
   commands += ESC.RESET;
   commands += ESC.DOUBLE_STRIKE_ON; // Make everything darker
@@ -47,14 +47,15 @@ export function formatReceipt58mm(sale) {
   // --- TOKEN / REFERENCE SECTION ---
   commands += "      - - - Token - - -       \n";
   commands += ". . . . . . . . . . . . . . . \n";
-  commands += `  ${sale.reference || sale.id || "N/A"}  \n`;
+  const refText = String(sale.reference || sale.id || "N/A");
+  commands += `${refText}\n`;
   commands += ". . . . . . . . . . . . . . . \n\n";
 
   // --- DETAILS SECTION ---
   commands += ESC.ALIGN_LEFT;
-  const totalWidth = 30; // Reduced to 30 to prevent wrapping on 58mm
-  const leftCol = 12;
-  const rightCol = 18;
+  const totalWidth = 24; // Reduced to 24 to fit 48mm thermal printer width
+  const leftCol = 13;
+  const rightCol = 11;
 
   const printRow = (label, value) => {
     return `${label.padEnd(leftCol)}${String(value).padStart(rightCol)}\n`;
@@ -62,35 +63,35 @@ export function formatReceipt58mm(sale) {
 
   const isPurchase = sale.type === 'purchase';
   commands += printRow("Token Type", isPurchase ? "Purchase" : "Sales");
-  commands += "------------------------------\n";
+  commands += "------------------------\n";
   
   const entityLabel = isPurchase ? "Supplier Name" : "Customer Name";
   const entityName = sale.customer_display_name || sale.supplier || (isPurchase ? "New Supplier" : "Walk-in Customer");
-  commands += printRow(entityLabel, entityName.length > rightCol ? entityName.substring(0, rightCol-3) + "..." : entityName);
+  commands += printRow(entityLabel, entityName.length > rightCol ? entityName.substring(0, rightCol - 3) + "..." : entityName);
   
   if (sale.payment_method) {
     commands += printRow("Pay Mode", sale.payment_method);
   }
-  commands += "------------------------------\n\n";
+  commands += "------------------------\n\n";
 
   // --- ITEMS LIST ---
-  commands += "ITEM NAME         QTY   AMOUNT\n";
-  commands += "------------------------------\n";
+  commands += "ITEM NAME   QTY  AMOUNT\n";
+  commands += "------------------------\n";
 
   (sale.items || []).forEach((item) => {
     const name = (item.name || item.product_name || item.product?.name || "Item").toUpperCase();
     const qty = `${item.quantity}`;
     const amount = `₹${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
 
-    // Column widths: Name(17), Qty(3), Amount(10) = 30 total
-    if (name.length > 17) {
+    // Column widths: Name(12), Qty(3), Amount(9) = 24 total
+    if (name.length > 12) {
       commands += `${name}\n`;
-      commands += "".padEnd(17) + qty.padStart(3) + amount.padStart(10) + "\n";
+      commands += "".padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n";
     } else {
-      commands += name.padEnd(17) + qty.padStart(3) + amount.padStart(10) + "\n";
+      commands += name.padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n";
     }
   });
-  commands += "------------------------------\n";
+  commands += "------------------------\n";
 
   // --- FINANCIAL SUMMARY ---
   const subtotal = sale.subtotal || (sale.grand_total - (sale.tax_amount || 0) + (sale.discount || 0));
@@ -110,7 +111,7 @@ export function formatReceipt58mm(sale) {
   }
 
   commands += printRow("Total", `₹${Math.round(sale.grand_total || sale.total || 0)}`);
-  commands += "------------------------------\n\n";
+  commands += "------------------------\n\n";
 
   // --- FOOTER SECTION ---
   commands += ESC.ALIGN_CENTER;
@@ -153,9 +154,9 @@ export function formatReceipt58mm(sale) {
  */
 export async function printViaRawBT(sale) {
   try {
-    const escData = formatReceipt58mm(sale);
+    const escData = formatReceipt48mm(sale);
     const base64Data = Buffer.from(escData, "binary").toString("base64");
-    const rawBtUri = `rawbt:base64,${base64Data}`;
+    const rawBtUri = `rawbt:base64,${encodeURIComponent(base64Data)}`;
 
     const canOpen = await Linking.canOpenURL(rawBtUri);
     if (canOpen) {

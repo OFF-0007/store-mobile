@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import apiClient from "@/lib/api/client";
@@ -11,11 +11,13 @@ export default function StoreProfileScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [logoUri, setLogoUri] = useState(null);
   const [storeForm, setStoreForm] = useState({
     name: '',
     mobile: '',
     address: '',
-    gst_number: ''
+    gst_number: '',
+    logo: null
   });
 
   async function loadStoreData() {
@@ -26,8 +28,12 @@ export default function StoreProfileScreen() {
         name: res.data.name || '',
         mobile: res.data.mobile || '',
         address: res.data.address || '',
-        gst_number: res.data.gst_number || ''
+        gst_number: res.data.gst_number || '',
+        logo: null
       });
+      if (res.data.logo) {
+        setLogoUri(apiClient.defaults.baseURL.replace('/api', '/storage/') + res.data.logo);
+      }
     } catch (e) {
       console.warn("Failed to load store data", e.message);
     } finally {
@@ -39,6 +45,10 @@ export default function StoreProfileScreen() {
     loadStoreData();
   }, []);
 
+  const pickImage = () => {
+    Alert.alert("Notice", "Logo upload functionality has been removed.");
+  };
+
   async function handleStoreSave() {
     if (!storeForm.name.trim()) {
       Alert.alert("Validation Error", "Store Name is required");
@@ -47,7 +57,26 @@ export default function StoreProfileScreen() {
 
     try {
       setIsSaving(true);
-      await apiClient.post('/store', storeForm);
+      const formData = new FormData();
+      formData.append('name', storeForm.name);
+      formData.append('mobile', storeForm.mobile);
+      formData.append('address', storeForm.address);
+      formData.append('gst_number', storeForm.gst_number);
+      
+      if (storeForm.logo) {
+        formData.append('logo', {
+          uri: storeForm.logo.uri,
+          name: storeForm.logo.fileName || 'logo.jpg',
+          type: storeForm.logo.mimeType || 'image/jpeg'
+        });
+      }
+
+      await apiClient.post('/store', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        }
+      });
+      
       Alert.alert("Success", "Store details updated successfully", [
         { text: "OK", onPress: () => router.back() }
       ]);
@@ -109,6 +138,19 @@ export default function StoreProfileScreen() {
       ) : (
         <ScrollView className="flex-1 p-4" keyboardShouldPersistTaps="handled">
           <GlassCard className="p-4 gap-4">
+            <View className="items-center mb-2">
+              <TouchableOpacity onPress={pickImage} className="w-24 h-24 bg-slate-100 rounded-full items-center justify-center border-2 border-dashed border-slate-300 overflow-hidden">
+                {logoUri ? (
+                  <Image source={{ uri: logoUri }} className="w-full h-full" resizeMode="contain" />
+                ) : (
+                  <View className="items-center">
+                    <Ionicons name="camera" size={24} color="#94a3b8" />
+                    <Text className="text-[9px] font-bold text-slate-400 mt-1 uppercase">Upload Logo</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </View>
+
             <View>
               <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Store Name *</Text>
               <TextInput

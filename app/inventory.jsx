@@ -78,7 +78,6 @@ export default function StockScreen() {
   function handleSave() {
     const errs = {};
     if (!fname.trim()) errs.name = "Name is required";
-    if (!fsku.trim()) errs.sku = "SKU is required";
     if (!fprice || isNaN(+fprice)) errs.price = "Enter a valid price";
     if (!fstock || isNaN(+fstock)) errs.stock = "Enter a valid stock qty";
     if (Object.keys(errs).length) {
@@ -204,17 +203,15 @@ export default function StockScreen() {
               <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                    SKU *
+                    SKU (optional)
                   </Text>
                   <TextInput
                     value={fsku}
                     onChangeText={setFsku}
-                    placeholder="GRN-RICE-5K"
+                    placeholder="Auto-generated if empty"
                     placeholderTextColor="#94a3b8"
-                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.sku ? "border-rose-300" : "border-slate-200"
-                      }`}
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                   />
-                  {errors.sku && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.sku}</Text>}
                 </View>
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">

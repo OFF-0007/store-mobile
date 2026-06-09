@@ -10,6 +10,7 @@ const DEFAULT_METRICS = {
   totalSalesReceived: 0,
   totalPurchasesBilled: 0,
   totalPurchasesPaid: 0,
+  totalPurchaseReturns: 0,
   totalExpenses: 0,
   lowStockCount: 0,
   outstandingSupplierDue: 0,

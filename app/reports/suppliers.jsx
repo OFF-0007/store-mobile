@@ -27,21 +27,36 @@ function PaymentModal({ visible, config, onClose, onSubmit }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (visible && config?.maxAmount) {
-      setAmount(String(Math.abs(config.maxAmount)));
+    if (visible) {
+      // Clear amount field—user enters what they want to pay, not the full due
+      setAmount("");
+      setPaymentMethod("Cash");
+      setNotes("");
     }
   }, [visible, config]);
 
   const handleSubmit = async () => {
-    if (!amount || parseFloat(amount) <= 0) {
+    const numericAmount = parseFloat(amount);
+    if (!amount || Number.isNaN(numericAmount) || numericAmount <= 0) {
       Alert.alert("Error", "Please enter a valid amount");
       return;
     }
+
+    const maxAmount = Number(config?.maxAmount ?? 0);
+    if (maxAmount > 0 && numericAmount > maxAmount) {
+      const errorMsg = config?.isRefund 
+        ? `Refund cannot exceed available credit of ${fmt(maxAmount)}`
+        : `Amount cannot exceed due amount of ${fmt(maxAmount)}`;
+      Alert.alert("Error", errorMsg);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
-      await onSubmit(amount, paymentMethod, notes);
+      await onSubmit(numericAmount, paymentMethod, notes);
       onClose();
       setAmount("");
+      setPaymentMethod("Cash");
       setNotes("");
     } catch (e) {
       Alert.alert("Error", e.message || "Payment failed");
@@ -62,6 +77,28 @@ function PaymentModal({ visible, config, onClose, onSubmit }) {
           <Text className="text-slate-400 text-[10px] font-bold uppercase tracking-wider mb-6">
             {config.name}
           </Text>
+
+          {config.isRefund && config.maxAmount > 0 && (
+            <View className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4">
+              <Text className="text-emerald-700 text-[10px] font-black uppercase tracking-wider">
+                Available Credit
+              </Text>
+              <Text className="text-emerald-600 text-lg font-black mt-1">
+                {fmt(config.maxAmount)}
+              </Text>
+            </View>
+          )}
+
+          {!config.isRefund && config.maxAmount > 0 && (
+            <View className="bg-rose-50 border border-rose-100 rounded-2xl p-4 mb-4">
+              <Text className="text-rose-700 text-[10px] font-black uppercase tracking-wider">
+                Outstanding Due
+              </Text>
+              <Text className="text-rose-600 text-lg font-black mt-1">
+                {fmt(config.maxAmount)}
+              </Text>
+            </View>
+          )}
 
           <View className="mb-4">
             <Text className="text-slate-500 text-[10px] font-black uppercase mb-2 ml-1">Amount</Text>
@@ -161,7 +198,10 @@ export default function SupplierReportScreen() {
     setShowDetailModal(true);
     try {
       const res = await apiClient.get(`/suppliers/${supplierId}`);
-      setSelectedSupplier(res.data);
+      // Ensure the supplier details have the correct credit/due values from the API
+      const supplierData = res.data;
+      // The API should return current_due and current_credit properly
+      setSelectedSupplier(supplierData);
     } catch (e) {
       Alert.alert("Error", "Failed to fetch supplier details");
       setShowDetailModal(false);
@@ -190,20 +230,22 @@ export default function SupplierReportScreen() {
   };
 
   const onPayBalance = (supplier) => {
+    const dueAmount = Math.max(0, Number(supplier.current_due ?? supplier.balance ?? 0));
     setPaymentConfig({
       id: supplier.id,
       name: supplier.name,
-      maxAmount: supplier.current_due || supplier.balance,
+      maxAmount: dueAmount,
       isRefund: false,
     });
     setShowPaymentModal(true);
   };
 
   const onReceiveRefund = (supplier) => {
+    const creditAmount = Math.max(0, Number(supplier.current_credit ?? 0));
     setPaymentConfig({
       id: supplier.id,
       name: supplier.name,
-      maxAmount: supplier.current_due || supplier.balance,
+      maxAmount: creditAmount,
       isRefund: true,
     });
     setShowPaymentModal(true);
@@ -277,11 +319,11 @@ export default function SupplierReportScreen() {
               icon={<Ionicons name="alert-circle-outline" size={16} color="#f43f5e" />} 
               accent="bg-rose-50/50" 
             />
-            <SummaryCard 
-              label="Supplier Credit" 
-              value={fmt(data.summary.total_credit || 0)} 
-              icon={<Ionicons name="gift-outline" size={16} color="#10b981" />} 
-              accent="bg-emerald-50/50" 
+            <SummaryCard
+              label="Supplier Credit"
+              value={fmt(data.summary.total_credit || 0)}
+              icon={<Ionicons name="gift-outline" size={16} color="#10b981" />}
+              accent="bg-emerald-50/50"
             />
           </View>
         )}
@@ -443,7 +485,7 @@ export default function SupplierReportScreen() {
                       <Ionicons name="card-outline" size={18} color="#fff" />
                       <Text className="text-white font-black uppercase text-[10px] tracking-widest">Pay Balance</Text>
                     </TouchableOpacity>
-                  ) : selectedSupplier.current_due < 0 ? (
+                  ) : selectedSupplier.current_credit > 0 ? (
                     <TouchableOpacity
                       onPress={() => onReceiveRefund(selectedSupplier)}
                       className="flex-1 bg-emerald-600 py-4 rounded-3xl flex-row items-center justify-center gap-2 shadow-lg"

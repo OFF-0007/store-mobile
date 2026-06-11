@@ -1,58 +1,148 @@
 /**
  * Storeman Thermal Receipt Printer Utility
  * Uses RawBT App (Android Intent) for printing – no native compilation required.
+ * Pure JavaScript Implementation – 100% binary safe and does not rely on Node Buffer polyfills.
  */
 import { Alert, Linking, Platform } from "react-native";
-import { Buffer } from "buffer";
 
-// ESC/POS Commands Constants
+// Helper: Convert string to UTF-8 byte array (Uint8Array)
+function stringToUtf8(str) {
+  const arr = [];
+  for (let i = 0; i < str.length; i++) {
+    let charcode = str.charCodeAt(i);
+    if (charcode < 0x80) arr.push(charcode);
+    else if (charcode < 0x800) {
+      arr.push(0xc0 | (charcode >> 6), 
+               0x80 | (charcode & 0x3f));
+    } else if (charcode < 0xd800 || charcode >= 0xe000) {
+      arr.push(0xe0 | (charcode >> 12), 
+               0x80 | ((charcode >> 6) & 0x3f), 
+               0x80 | (charcode & 0x3f));
+    } else {
+      // surrogate pair
+      i++;
+      charcode = 0x10000 + (((charcode & 0x3ff)<<10)
+                | (str.charCodeAt(i) & 0x3ff));
+      arr.push(0xf0 | (charcode >> 18), 
+               0x80 | ((charcode >> 12) & 0x3f), 
+               0x80 | ((charcode >> 6) & 0x3f), 
+               0x80 | (charcode & 0x3f));
+    }
+  }
+  return new Uint8Array(arr);
+}
+
+// Helper: Convert Hex string to Uint8Array
+function hexToUint8Array(hexString) {
+  const l = hexString.length;
+  const arr = new Uint8Array(l / 2);
+  for (let i = 0; i < l; i += 2) {
+    arr[i / 2] = parseInt(hexString.substring(i, i + 2), 16);
+  }
+  return arr;
+}
+
+// Helper: Concatenate multiple Uint8Arrays
+function concatUint8Arrays(arrays) {
+  let totalLength = 0;
+  for (let arr of arrays) {
+    totalLength += arr.length;
+  }
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (let arr of arrays) {
+    result.set(arr, offset);
+    offset += arr.length;
+  }
+  return result;
+}
+
+// Helper: Pure JavaScript Base64 encoder for Uint8Array
+function uint8ToBase64(uint8) {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  let result = '';
+  const l = uint8.length;
+  for (let i = 0; i < l; i += 3) {
+    const b0 = uint8[i];
+    const b1 = i + 1 < l ? uint8[i + 1] : 0;
+    const b2 = i + 2 < l ? uint8[i + 2] : 0;
+    
+    const chunk = (b0 << 16) | (b1 << 8) | b2;
+    
+    const c0 = (chunk >> 18) & 63;
+    const c1 = (chunk >> 12) & 63;
+    const c2 = (chunk >> 6) & 63;
+    const c3 = chunk & 63;
+    
+    result += chars[c0] + chars[c1];
+    result += (i + 1 < l) ? chars[c2] : '=';
+    result += (i + 2 < l) ? chars[c3] : '=';
+  }
+  return result;
+}
+
+// ESC/POS Hex Commands Constants
 const ESC = {
-  RESET: "\x1b\x40",
-  ALIGN_LEFT: "\x1b\x61\x00",
-  ALIGN_CENTER: "\x1b\x61\x01",
-  ALIGN_RIGHT: "\x1b\x61\x02",
-  BOLD_ON: "\x1b\x45\x01",
-  BOLD_OFF: "\x1b\x45\x00",
-  DOUBLE_STRIKE_ON: "\x1b\x47\x01",
-  DOUBLE_STRIKE_OFF: "\x1b\x47\x00",
-  FONT_SIZE_LARGE: "\x1d\x21\x11",
-  FONT_SIZE_NORMAL: "\x1d\x21\x00",
-  FEED_2: "\x1b\x64\x02",
-  FEED_4: "\x1b\x64\x04",
-  CUT: "\x1d\x56\x41\x03",
+  RESET: "1b40",
+  ALIGN_LEFT: "1b6100",
+  ALIGN_CENTER: "1b6101",
+  ALIGN_RIGHT: "1b6102",
+  BOLD_ON: "1b4501",
+  BOLD_OFF: "1b4500",
+  DOUBLE_STRIKE_ON: "1b4701",
+  DOUBLE_STRIKE_OFF: "1b4700",
+  FONT_SIZE_LARGE: "1d2111",
+  FONT_SIZE_NORMAL: "1d2100",
+  FEED_2: "1b6402",
+  FEED_4: "1b6404",
+  CUT: "1d564103",
 };
 
 /**
  * Format receipt text for 48mm printer (approx 24 characters per line to avoid wrapping)
  */
 export function formatReceipt48mm(sale) {
-  let commands = "";
-  commands += ESC.RESET;
-  commands += ESC.DOUBLE_STRIKE_ON; // Make everything darker
-  commands += ESC.BOLD_ON; // Global bold for maximum darkness
+  const parts = [];
+
+  const addText = (str) => {
+    parts.push(stringToUtf8(str));
+  };
+
+  const addRaw = (data) => {
+    if (typeof data === "string") {
+      parts.push(hexToUint8Array(data));
+    } else {
+      parts.push(data);
+    }
+  };
+
+  addRaw(ESC.RESET);
+  addRaw(ESC.DOUBLE_STRIKE_ON); // Make everything darker
+  addRaw(ESC.BOLD_ON); // Global bold for maximum darkness
 
   // --- HEADER SECTION ---
-  commands += ESC.ALIGN_CENTER;
-  commands += ESC.FONT_SIZE_LARGE;
+  addRaw(ESC.FONT_SIZE_LARGE);
+  addRaw(ESC.ALIGN_CENTER);
   // Use store name if provided, else default
-  commands += `${(sale.store_name || "STOREMAN POS").toUpperCase()}\n`;
-  commands += ESC.FONT_SIZE_NORMAL;
+  addText(`${(sale.store_name || "STOREMAN POS").toUpperCase()}\n`);
+  addRaw(ESC.FONT_SIZE_NORMAL);
+  addRaw(ESC.ALIGN_CENTER); // Re-align center for the rest of the header
 
   // Date & Time
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-  const timeStr = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  commands += `${dateStr}  ${timeStr}\n\n`;
+  const dateStr = now.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  addText(`${dateStr}  ${timeStr}\n\n`);
 
   // --- TOKEN / REFERENCE SECTION ---
-  commands += "      - - - Token - - -       \n";
-  commands += ". . . . . . . . . . . . . . . \n";
+  addText("      - - - Token - - -       \n");
+  addText(". . . . . . . . . . . . . . . \n");
   const refText = String(sale.reference || sale.id || "N/A");
-  commands += `${refText}\n`;
-  commands += ". . . . . . . . . . . . . . . \n\n";
+  addText(`${refText}\n`);
+  addText(". . . . . . . . . . . . . . . \n\n");
 
   // --- DETAILS SECTION ---
-  commands += ESC.ALIGN_LEFT;
+  addRaw(ESC.ALIGN_LEFT);
   const totalWidth = 24; // Reduced to 24 to fit 48mm thermal printer width
   const leftCol = 13;
   const rightCol = 11;
@@ -61,92 +151,96 @@ export function formatReceipt48mm(sale) {
     return `${label.padEnd(leftCol)}${String(value).padStart(rightCol)}\n`;
   };
 
-  const isPurchase = sale.type === 'purchase';
-  commands += printRow("Token Type", isPurchase ? "Purchase" : "Sales");
-  commands += "------------------------\n";
-  
+  const isPurchase = sale.type === "purchase";
+  addText(printRow("Token Type", isPurchase ? "Purchase" : "Sales"));
+  addText("------------------------\n");
+
   const entityLabel = isPurchase ? "Supplier Name" : "Customer Name";
   const entityName = sale.customer_display_name || sale.supplier || (isPurchase ? "New Supplier" : "Walk-in Customer");
-  commands += printRow(entityLabel, entityName.length > rightCol ? entityName.substring(0, rightCol - 3) + "..." : entityName);
-  
+  addText(printRow(entityLabel, entityName.length > rightCol ? entityName.substring(0, rightCol - 3) + "..." : entityName));
+
   if (sale.payment_method) {
-    commands += printRow("Pay Mode", sale.payment_method);
+    addText(printRow("Pay Mode", sale.payment_method));
   }
-  commands += "------------------------\n\n";
+  addText("------------------------\n\n");
 
   // --- ITEMS LIST ---
-  commands += "ITEM NAME   QTY  AMOUNT\n";
-  commands += "------------------------\n";
+  addText("ITEM NAME   QTY  AMOUNT\n");
+  addText("------------------------\n");
 
   (sale.items || []).forEach((item) => {
     const name = (item.name || item.product_name || item.product?.name || "Item").toUpperCase();
     const qty = `${item.quantity}`;
-    const amount = `₹${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
+    const amount = `Rs.${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
 
     // Column widths: Name(12), Qty(3), Amount(9) = 24 total
     if (name.length > 12) {
-      commands += `${name}\n`;
-      commands += "".padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n";
+      addText(`${name}\n`);
+      addText("".padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n");
     } else {
-      commands += name.padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n";
+      addText(name.padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n");
     }
   });
-  commands += "------------------------\n";
+  addText("------------------------\n");
 
   // --- FINANCIAL SUMMARY ---
   const subtotal = sale.subtotal || (sale.grand_total - (sale.tax_amount || 0) + (sale.discount || 0));
-  commands += printRow("Amount", `₹${Math.round(subtotal)}`);
-  
+  addText(printRow("Amount", `Rs.${Math.round(subtotal)}`));
+
   if (sale.tax_amount > 0) {
     const taxLabel = sale.is_outside_state ? "Tax (IGST)" : "Tax (GST)";
-    commands += printRow(taxLabel, `₹${Math.round(sale.tax_amount)}`);
-  }
-  
-  if (sale.discount > 0) {
-    commands += printRow("Discount", `-₹${Math.round(sale.discount)}`);
-  }
-  
-  if (sale.round_off && sale.round_off !== 0) {
-    commands += printRow("Round Off", `${sale.round_off > 0 ? "+" : ""}${sale.round_off.toFixed(2)}`);
+    addText(printRow(taxLabel, `Rs.${Math.round(sale.tax_amount)}`));
   }
 
-  commands += printRow("Total", `₹${Math.round(sale.grand_total || sale.total || 0)}`);
-  commands += "------------------------\n\n";
+  if (sale.discount > 0) {
+    addText(printRow("Discount", `-Rs.${Math.round(sale.discount)}`));
+  }
+
+  if (sale.round_off && sale.round_off !== 0) {
+    const roundVal = typeof sale.round_off === "number" ? sale.round_off : parseFloat(sale.round_off);
+    if (!isNaN(roundVal)) {
+      addText(printRow("Round Off", `${roundVal > 0 ? "+" : ""}${roundVal.toFixed(2)}`));
+    }
+  }
+
+  addText(printRow("Total", `Rs.${Math.round(sale.grand_total || sale.total || 0)}`));
+  addText("------------------------\n\n");
 
   // --- FOOTER SECTION ---
-  commands += ESC.ALIGN_CENTER;
-  commands += printRow("Operator", "Admin");
-  commands += "\n";
-  
-  commands += ESC.FONT_SIZE_LARGE;
-  commands += "THANK YOU\n";
-  commands += ESC.FONT_SIZE_NORMAL;
-  commands += "VISIT AGAIN\n\n";
+  addRaw(ESC.ALIGN_CENTER);
+
+  addRaw(ESC.FONT_SIZE_LARGE);
+  addRaw(ESC.ALIGN_CENTER);
+  addText("THANK YOU\n");
+  addRaw(ESC.FONT_SIZE_NORMAL);
+  addRaw(ESC.ALIGN_CENTER);
+  addText("VISIT AGAIN\n\n");
 
   // Barcode (Reference ID) - Moved below "Thank You"
   if (sale.reference || sale.id) {
     const ref = sale.reference || String(sale.id);
-    commands += ESC.ALIGN_CENTER;
+    addRaw(ESC.ALIGN_CENTER);
     // ESC/POS Code128 Barcode: [GS k m n d1...dn]
-    const barcodeData = Buffer.from(ref, 'ascii');
-    const barcodeCommand = Buffer.concat([
-      Buffer.from([0x1d, 0x68, 0x40]), // Height: 64 dots
-      Buffer.from([0x1d, 0x77, 0x02]), // Width: 2
-      Buffer.from([0x1d, 0x48, 0x02]), // HRI (text) below barcode
-      Buffer.from([0x1d, 0x6b, 0x49, barcodeData.length]), // Code128
+    const barcodeData = stringToUtf8(ref);
+    const barcodeCommand = concatUint8Arrays([
+      hexToUint8Array("1d6840"), // Height: 64 dots
+      hexToUint8Array("1d7702"), // Width: 2
+      hexToUint8Array("1d4802"), // HRI (text) below barcode
+      hexToUint8Array("1d6b49"), // Code128
+      new Uint8Array([barcodeData.length]), // Length byte
       barcodeData
     ]);
-    commands += barcodeCommand.toString('binary');
-    commands += "\n";
+    addRaw(barcodeCommand);
+    addText("\n");
   }
-  
-  commands += ESC.BOLD_OFF;
-  commands += ESC.DOUBLE_STRIKE_OFF;
-  
-  commands += ESC.FEED_4;
-  commands += ESC.CUT;
 
-  return commands;
+  addRaw(ESC.BOLD_OFF);
+  addRaw(ESC.DOUBLE_STRIKE_OFF);
+
+  addRaw(ESC.FEED_4);
+  addRaw(ESC.CUT);
+
+  return concatUint8Arrays(parts);
 }
 
 /**
@@ -154,9 +248,9 @@ export function formatReceipt48mm(sale) {
  */
 export async function printViaRawBT(sale) {
   try {
-    const escData = formatReceipt48mm(sale);
-    const base64Data = Buffer.from(escData, "binary").toString("base64");
-    const rawBtUri = `rawbt:base64,${encodeURIComponent(base64Data)}`;
+    const escBuffer = formatReceipt48mm(sale);
+    const base64Data = uint8ToBase64(escBuffer);
+    const rawBtUri = `rawbt:base64,${base64Data}`;
 
     const canOpen = await Linking.canOpenURL(rawBtUri);
     if (canOpen) {

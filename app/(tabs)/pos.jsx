@@ -1023,30 +1023,7 @@ export default function POSScreen() {
           </TouchableOpacity>
         </View>
       )}
- 
-      {/* Floating Scanner Button */}
-      <TouchableOpacity
-        onPress={handleOpenScanner}
-        style={{
-          position: 'absolute',
-          bottom: cart.length > 0 ? 100 : 20,
-          right: 20,
-          backgroundColor: '#f97316',
-          borderRadius: 50,
-          width: 60,
-          height: 60,
-          justifyContent: 'center',
-          alignItems: 'center',
-          shadowColor: '#f97316',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.4,
-          shadowRadius: 8,
-          elevation: 8,
-          zIndex: 30,
-        }}
-      >
-        <Ionicons name="barcode-outline" size={26} color="#fff" />
-      </TouchableOpacity>
+
  
       {/* ── CHECKOUT MODAL (Math & Submit) ─────────────────────────────────── */}
       <Modal visible={showCheckoutModal} animationType="slide" transparent>

@@ -91,6 +91,16 @@ export default function ReportsMenuScreen() {
           route="/reports/expenses"
         />
 
+        <Text className="text-slate-400 text-[10px] font-black uppercase tracking-[2px] mt-4 mb-4 ml-1">Inventory Analytics</Text>
+
+        <ReportMenuItem 
+          title="Warehouse Report"
+          subtitle="Stock valuation & product quantities"
+          icon="cube"
+          color="bg-amber-500"
+          route="/reports/warehouse"
+        />
+
         <Text className="text-slate-400 text-[10px] font-black uppercase tracking-[2px] mt-4 mb-4 ml-1">Ledger Analytics</Text>
 
         <ReportMenuItem 

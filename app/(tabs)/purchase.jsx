@@ -58,6 +58,8 @@ export default function PurchaseScreen() {
     fetchProducts,
     fetchSuppliers,
     fetchUnits,
+    warehouses,
+    fetchWarehouses,
     isLoading: storeLoading,
     addProduct,
   } = useMockStore();
@@ -68,7 +70,7 @@ export default function PurchaseScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchProducts(), fetchSuppliers(), fetchUnits()]);
+    await Promise.all([fetchProducts(), fetchSuppliers(), fetchUnits(), fetchWarehouses()]);
     setRefreshing(false);
   }, []);
 
@@ -76,6 +78,7 @@ export default function PurchaseScreen() {
     fetchProducts();
     fetchSuppliers();
     fetchUnits();
+    fetchWarehouses();
     apiClient.get('/store').then(res => {
       if (res.data && res.data.name) setStoreName(res.data.name);
     }).catch(() => {});
@@ -87,6 +90,13 @@ export default function PurchaseScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [selectedSupplierId, setSelectedSupplierId] = useState(null);
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+
+  useEffect(() => {
+    if (!selectedWarehouseId && warehouses && warehouses.length > 0) {
+      setSelectedWarehouseId(warehouses[0].id);
+    }
+  }, [warehouses, selectedWarehouseId]);
   const [supplierName, setSupplierName] = useState("");
   const [supplierPhone, setSupplierPhone] = useState("");
   const [showSupplierSuggestions, setShowSupplierSuggestions] = useState(false);
@@ -428,6 +438,7 @@ export default function PurchaseScreen() {
     const purchasePayload = {
       supplier_id: selectedSupplierId,
       supplier_name: selectedSupplierId ? null : supplierName.trim(),
+      warehouse_id: selectedWarehouseId,
       purchase_date: new Date().toISOString().split("T")[0],
       items: preparedItems,
       subtotal: Number(subtotal.toFixed(2)),
@@ -458,6 +469,7 @@ export default function PurchaseScreen() {
         setAdditionalNotes("");
         setIsPaidAmountEdited(false);
         setSelectedSupplierId(null);
+        setSelectedWarehouseId(warehouses?.length > 0 ? warehouses[0].id : null);
         setSupplierName("");
         setSupplierPhone("");
         setSupplierSearch("");
@@ -892,6 +904,37 @@ export default function PurchaseScreen() {
                 Supplier & Payment Details
               </Text>
               <View className="gap-3">
+                {/* Warehouse Selector */}
+                {warehouses && warehouses.length > 0 && (
+                  <View className="mb-2">
+                    <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                      Warehouse *
+                    </Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                      {warehouses.map((w) => (
+                        <TouchableOpacity
+                          key={w.id}
+                          onPress={() => setSelectedWarehouseId(w.id)}
+                          activeOpacity={0.8}
+                          className={`mr-2 px-4 py-2.5 rounded-xl border-2 ${
+                            selectedWarehouseId === w.id
+                              ? "bg-orange-50 border-orange-500"
+                              : "bg-white border-slate-200"
+                          }`}
+                        >
+                          <Text
+                            className={`text-sm font-bold ${
+                              selectedWarehouseId === w.id ? "text-orange-600" : "text-slate-600"
+                            }`}
+                          >
+                            {w.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </View>
+                )}
+
                 {/* Supplier Input */}
                 <View className="relative">
                   <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
@@ -1172,7 +1215,16 @@ export default function PurchaseScreen() {
               </View>
               <View className="flex-row justify-between">
                 <Text className="text-slate-600 text-xs font-bold">Status</Text>
-                <Text className="text-green-600 text-xs font-black uppercase">{paymentStatus}</Text>
+                <Text className="text-green-600 text-xs font-black uppercase">
+                  {(() => {
+                    if (completedPurchase.payment_status) return completedPurchase.payment_status;
+                    const paid = Number(completedPurchase.paid_amount || 0);
+                    const total = Number(completedPurchase.grand_total || 0);
+                    if (paid === 0) return "Unpaid";
+                    if (paid < total) return "Partial";
+                    return "Paid";
+                  })()}
+                </Text>
               </View>
             </View>
 

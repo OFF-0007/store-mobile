@@ -252,15 +252,15 @@ export default function HomeScreen() {
           </View>
 
           {/* AI Insight */}
-          <View className="flex-1 bg-gradient-to-br from-orange-50 to-amber-50 rounded-2xl p-4 shadow-sm elevation-1 border border-orange-100 justify-between">
+          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-slate-100 justify-between">
             <View className="flex-row items-center mb-2">
-              <View className="w-7 h-7 rounded-full bg-orange-100 items-center justify-center mr-2">
-                <Feather name="zap" size={14} color="#f97316" />
+              <View className="w-7 h-7 rounded-full bg-orange-50 items-center justify-center mr-2 border border-orange-100">
+                <MaterialIcons name="auto-awesome" size={14} color="#f97316" />
               </View>
-              <Text className="text-orange-800 font-bold text-[10px] uppercase tracking-wider">Insight</Text>
+              <Text className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Insight</Text>
             </View>
-            <Text className="text-orange-900 text-[11px] font-semibold leading-snug">
-              Sales are looking great today! You're on track to beat yesterday's revenue by 15%.
+            <Text className="text-slate-700 text-[11px] font-semibold leading-snug">
+              Sales look great! You're on track to beat yesterday's revenue by <Text className="text-emerald-500 font-black">15%</Text>.
             </Text>
           </View>
         </View>

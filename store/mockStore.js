@@ -30,6 +30,7 @@ export const useMockStore = create((set, get) => ({
   customers: [],
   units: [],
   categories: [],
+  warehouses: [],
   isLoading: false,
   metrics: DEFAULT_METRICS,
 
@@ -72,6 +73,15 @@ export const useMockStore = create((set, get) => ({
       set({ units: response.data.units || [] });
     } catch (error) {
       console.error('Failed to fetch units:', error);
+    }
+  },
+
+  fetchWarehouses: async () => {
+    try {
+      const response = await apiClient.get('/warehouses');
+      set({ warehouses: response.data || [] });
+    } catch (error) {
+      console.error('Failed to fetch warehouses:', error);
     }
   },
 

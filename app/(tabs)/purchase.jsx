@@ -180,7 +180,7 @@ export default function PurchaseScreen() {
 
   // ── Product Suggestions & Search ───────────────────────────────────────────
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    if (!searchQuery.trim() || searchQuery.trim().length < 3) return [];
     const q = searchQuery.toLowerCase().trim();
     const filtered = products.filter((p) => {
       return (
@@ -192,7 +192,7 @@ export default function PurchaseScreen() {
     console.log('Search Query:', searchQuery);
     console.log('Products Count:', products.length);
     console.log('Filtered Products Count:', filtered.length);
-    return filtered;
+    return filtered.slice(0, 3);
   }, [products, searchQuery]);
 
   // Quick Add (Filtered by category, up to 24 products)
@@ -370,15 +370,14 @@ export default function PurchaseScreen() {
     }
   };
 
-  const handleQuickAddProduct = () => {
+  const handleQuickAddProduct = async () => {
     const errs = {};
     if (!fname.trim()) errs.name = "Name is required";
-    if (!fsku.trim()) errs.sku = "SKU is required";
     if (!fprice || isNaN(+fprice)) errs.price = "Enter a valid price";
-    if (!fstock || isNaN(+fstock)) errs.stock = "Enter a valid stock qty";
 
     if (Object.keys(errs).length) {
       setQuickAddErrors(errs);
+      Alert.alert("Validation Error", "Please check the required fields (Name, Price).");
       return;
     }
 
@@ -389,27 +388,34 @@ export default function PurchaseScreen() {
       category: "General",
       price: Number(fprice),
       cost: fcost ? Number(fcost) : undefined,
-      stock: parseInt(fstock, 10),
+      stock: 0,
       low_stock_threshold: 5,
       image: null,
     };
 
-    // Store the product (assuming mockStore addProduct handles IDs sync properly)
-    addProduct(newProduct);
+    try {
+      // Wait for the product to be created on the backend
+      const response = await addProduct(newProduct);
+      
+      const addedProduct = response?.product || response;
+      
+      if (!addedProduct || !addedProduct.id) {
+        throw new Error("Invalid response from server. Missing Product ID.");
+      }
+      
+      const productForCart = {
+        ...newProduct,
+        id: addedProduct.id,
+        unit: "Unit",
+      };
 
-    // Add to cart with default values since mockStore addProduct doesn't return the full assigned ID synchronously, 
-    // we generate a temp ID or re-fetch. Since addProduct is synchronous in mockStore, let's just add to cart using the details.
-    // We will use a mock ID if needed, but since mockStore adds it locally, the products array will update soon.
-    // We will just add it directly to cart.
-    const productForCart = {
-      id: Date.now().toString(), // temporary ID
-      ...newProduct,
-      unit: "Unit",
-    };
-
-    addToCart(productForCart);
-    setShowQuickAddModal(false);
-    Alert.alert("Product Added", `"${fname}" has been added to the system and your cart.`);
+      addToCart(productForCart);
+      setShowQuickAddModal(false);
+      Alert.alert("Product Added", `"${fname}" has been added to the system and your cart.`);
+    } catch (error) {
+      console.error("Add Product Error:", error);
+      Alert.alert("Error", "Failed to add product: " + (error?.response?.data?.message || error.message || "Unknown error"));
+    }
   };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
@@ -634,6 +640,33 @@ export default function PurchaseScreen() {
                   >
                     <Ionicons name="close-circle" size={18} color="#cbd5e1" />
                   </TouchableOpacity>
+                )}
+
+                {/* Search Suggestions Overlay */}
+                {searchQuery.trim().length >= 3 && (
+                  <View className="absolute top-12 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
+                    {filteredProducts.length > 0 ? (
+                      filteredProducts.map((p) => (
+                        <TouchableOpacity
+                          key={p.id}
+                          onPress={() => addToCart(p)}
+                          className="p-3 border-b border-slate-50 flex-row justify-between items-center"
+                        >
+                          <View className="flex-1 pr-2">
+                            <Text className="text-slate-800 font-bold text-xs uppercase">{p.name}</Text>
+                            <Text className="text-slate-400 text-[10px]">
+                              Cost: ₹{p.cost || p.price} | Stock: {p.stock}
+                            </Text>
+                          </View>
+                          <Text className="text-orange-500 text-xs font-bold">+ Add</Text>
+                        </TouchableOpacity>
+                      ))
+                    ) : (
+                      <Text className="p-3 text-slate-400 text-xs text-center font-bold">
+                        No matching products
+                      </Text>
+                    )}
+                  </View>
                 )}
               </View>
               <TouchableOpacity
@@ -1148,43 +1181,7 @@ export default function PurchaseScreen() {
       </TouchableOpacity>
       </KeyboardAvoidingView>
 
-      {/* Product Search Suggestions Modal */}
-      <Modal
-        visible={searchQuery.trim().length > 0}
-        transparent={true}
-        animationType="none"
-        onRequestClose={() => setSearchQuery("")}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          onPress={() => setSearchQuery("")}
-          className="flex-1 bg-black/30"
-        >
-          <View className="mt-24 mx-4 bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((p) => (
-                <TouchableOpacity
-                  key={p.id}
-                  onPress={() => addToCart(p)}
-                  className="p-3 border-b border-slate-50 flex-row justify-between items-center"
-                >
-                  <View className="flex-1 pr-2">
-                    <Text className="text-slate-800 font-bold text-xs uppercase">{p.name}</Text>
-                    <Text className="text-slate-400 text-[10px]">
-                      Cost: ₹{p.cost || p.price} | Stock: {p.stock}
-                    </Text>
-                  </View>
-                  <Text className="text-orange-500 text-xs font-bold">+ Add</Text>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <Text className="p-3 text-slate-400 text-xs text-center font-bold">
-                No matching products
-              </Text>
-            )}
-          </View>
-        </TouchableOpacity>
-      </Modal>
+
 
       {/* Success Modal */}
       {isSuccessOpen && completedPurchase && (
@@ -1371,12 +1368,12 @@ export default function PurchaseScreen() {
 
                 <View>
                   <Text className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
-                    SKU *
+                    SKU (Optional)
                   </Text>
                   <TextInput
                     value={fsku}
                     onChangeText={setFsku}
-                    placeholder="e.g. WAT-BOT-1L"
+                    placeholder="Auto-generated if left blank"
                     className={`bg-slate-50 border-2 rounded-xl px-4 py-3 text-slate-800 font-bold ${quickAddErrors.sku ? "border-rose-300" : "border-slate-200"}`}
                   />
                   {quickAddErrors.sku && <Text className="text-rose-500 text-xs mt-1 ml-1">{quickAddErrors.sku}</Text>}

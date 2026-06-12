@@ -454,8 +454,8 @@ export default function StockScreen() {
                           </View>
                         </View>
 
-                        {/* Right: stock + controls */}
-                        <View className="items-end gap-1.5">
+                        {/* Right: stock */}
+                        <View className="items-end justify-center">
                           <Text
                             className={`text-xs font-black ${isOut
                               ? "text-rose-600"
@@ -466,20 +466,6 @@ export default function StockScreen() {
                           >
                             {p.stock} {p.stock === 1 ? "unit" : "units"}
                           </Text>
-                          <View className="flex-row border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
-                            <TouchableOpacity
-                              onPress={() => adjustStock(p.id, -1)}
-                              className="px-2.5 py-1 border-r border-slate-200 bg-slate-100 active:bg-slate-200"
-                            >
-                              <Text className="text-slate-800 font-bold text-xs">−</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                              onPress={() => adjustStock(p.id, 1)}
-                              className="px-2.5 py-1 bg-slate-100 active:bg-slate-200"
-                            >
-                              <Text className="text-slate-800 font-bold text-xs">＋</Text>
-                            </TouchableOpacity>
-                          </View>
                         </View>
                       </View>
                     </View>

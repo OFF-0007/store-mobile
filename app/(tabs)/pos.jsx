@@ -175,7 +175,7 @@ export default function POSScreen() {
 
   // ── Product Suggestions & Search ───────────────────────────────────────────
   const filteredProducts = useMemo(() => {
-    if (!searchQuery.trim()) return [];
+    if (!searchQuery.trim() || searchQuery.trim().length < 3) return [];
     const q = searchQuery.toLowerCase().trim();
     return products.filter((p) => {
       return (
@@ -183,7 +183,7 @@ export default function POSScreen() {
         p.sku.toLowerCase().includes(q) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
       );
-    });
+    }).slice(0, 3);
   }, [products, searchQuery]);
 
   // Quick Add (Filtered by category, up to 24 available products in stock)
@@ -617,7 +617,7 @@ export default function POSScreen() {
                 />
 
                 {/* Search Suggestions Overlay */}
-                {searchQuery.trim().length > 0 && (
+                {searchQuery.trim().length >= 3 && (
                   <View className="absolute top-12 left-0 right-0 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto">
                     {filteredProducts.length > 0 ? (
                       filteredProducts.map((p) => (

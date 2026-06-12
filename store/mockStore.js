@@ -88,6 +88,8 @@ export const useMockStore = create((set, get) => ({
   recordSale: async (saleData) => {
     try {
       const response = await apiClient.post('/sales', saleData);
+      // Refresh products to sync the reduced stock
+      await get().fetchProducts();
       return response.data;
     } catch (error) {
       console.error('Failed to record sale:', error);
@@ -98,6 +100,8 @@ export const useMockStore = create((set, get) => ({
   recordPurchase: async (purchaseData) => {
     try {
       const response = await apiClient.post('/purchases', purchaseData);
+      // Refresh products to sync the increased stock
+      await get().fetchProducts();
       return response.data;
     } catch (error) {
       console.error('Failed to record purchase:', error);

@@ -37,7 +37,7 @@ export const useMockStore = create((set, get) => ({
   fetchProducts: async () => {
     set({ isLoading: true });
     try {
-      const response = await apiClient.get('/products');
+      const response = await apiClient.get(`/products?t=${Date.now()}`);
       set({
         products: response.data.products || [],
         categories: response.data.categories || [],

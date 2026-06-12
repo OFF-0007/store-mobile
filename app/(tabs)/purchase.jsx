@@ -233,7 +233,10 @@ export default function PurchaseScreen() {
   };
 
   const updateItemQuantity = (id, qty) => {
-    if (qty <= 0) {
+    if (qty !== "" && Number(qty) < 0) {
+      return;
+    }
+    if (qty === 0) {
       setCart((prev) => prev.filter((item) => item.product_id !== id));
       return;
     }
@@ -414,7 +417,14 @@ export default function PurchaseScreen() {
       Alert.alert("Product Added", `"${fname}" has been added to the system and your cart.`);
     } catch (error) {
       console.error("Add Product Error:", error);
-      Alert.alert("Error", "Failed to add product: " + (error?.response?.data?.message || error.message || "Unknown error"));
+      let errMsg = error?.response?.data?.message || error.message || "Unknown error";
+      if (error?.response?.data?.errors) {
+        const firstError = Object.values(error.response.data.errors)[0];
+        if (firstError && firstError.length > 0) {
+          errMsg = firstError[0];
+        }
+      }
+      Alert.alert("Error", "Failed to add product: " + errMsg);
     }
   };
 
@@ -428,6 +438,13 @@ export default function PurchaseScreen() {
     if (!selectedSupplierId && !supplierName.trim()) {
       Alert.alert("Supplier Required", "Please select or enter a supplier name.");
       return;
+    }
+
+    for (const item of cart) {
+      if (!item.quantity || Number(item.quantity) <= 0) {
+        Alert.alert("Invalid Quantity", `Please enter a valid quantity for "${item.name}".`);
+        return;
+      }
     }
 
     const preparedItems = itemsWithTotals.map((item) => ({
@@ -843,10 +860,22 @@ export default function PurchaseScreen() {
                         >
                           <Text className="text-slate-800 font-bold text-sm">−</Text>
                         </TouchableOpacity>
-                        <View className="px-4 py-2 justify-center bg-white">
-                          <Text className="text-slate-800 font-black text-sm font-mono">
-                            {item.quantity}
-                          </Text>
+                        <View className="px-1 py-1 justify-center bg-white min-w-[40px]">
+                          <TextInput
+                            value={item.quantity === "" ? "" : String(item.quantity)}
+                            onChangeText={(val) => {
+                              if (val === "") {
+                                updateItemQuantity(item.product_id, "");
+                                return;
+                              }
+                              const parsed = parseInt(val, 10);
+                              if (!isNaN(parsed)) {
+                                updateItemQuantity(item.product_id, parsed);
+                              }
+                            }}
+                            keyboardType="numeric"
+                            className="text-slate-800 font-black text-sm text-center py-1 m-0 font-mono"
+                          />
                         </View>
                         <TouchableOpacity
                           onPress={() => updateItemQuantity(item.product_id, item.quantity + 1)}

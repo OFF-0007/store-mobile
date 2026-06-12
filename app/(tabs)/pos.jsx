@@ -234,7 +234,10 @@ export default function POSScreen() {
   }, []);
 
   const updateItemQuantity = useCallback((id, qty) => {
-    if (qty <= 0) {
+    if (qty !== "" && Number(qty) < 0) {
+      return;
+    }
+    if (qty === 0) {
       setCart((prev) => prev.filter((item) => item.product_id !== id));
       return;
     }
@@ -374,8 +377,12 @@ export default function POSScreen() {
       }
     }
 
-    // Check stock levels
+    // Check stock levels and valid quantities
     for (const item of cart) {
+      if (!item.quantity || Number(item.quantity) <= 0) {
+        Alert.alert("Invalid Quantity", `Please enter a valid quantity for "${item.name}".`);
+        return;
+      }
       const liveProduct = products.find((p) => p.id === item.product_id);
       if (!liveProduct || liveProduct.stock < item.quantity) {
         Alert.alert(
@@ -796,9 +803,27 @@ export default function POSScreen() {
                         >
                           <Text className="text-slate-800 font-bold text-sm">−</Text>
                         </TouchableOpacity>
-                        <Text className="px-3 py-1.5 text-slate-800 font-black text-xs font-mono text-center min-w-[30px]">
-                          {item.quantity}
-                        </Text>
+                        <View className="px-1 py-1 justify-center bg-white min-w-[40px]">
+                          <TextInput
+                            value={item.quantity === "" ? "" : String(item.quantity)}
+                            onChangeText={(val) => {
+                              if (val === "") {
+                                updateItemQuantity(item.product_id, "");
+                                return;
+                              }
+                              const parsed = parseInt(val, 10);
+                              if (!isNaN(parsed)) {
+                                if (parsed > item.available_stock) {
+                                  Alert.alert("Stock Limit", `Only ${item.available_stock} available.`);
+                                  return;
+                                }
+                                updateItemQuantity(item.product_id, parsed);
+                              }
+                            }}
+                            keyboardType="numeric"
+                            className="text-slate-800 font-black text-xs text-center py-1 m-0 font-mono"
+                          />
+                        </View>
                         <TouchableOpacity
                           onPress={() => {
                             if (item.quantity >= item.available_stock) {

@@ -14,6 +14,7 @@ import {
   Pressable,
   TextInput,
   Dimensions,
+  Image,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
 import { StatusBar } from "expo-status-bar";
@@ -316,8 +317,8 @@ export default function LoginScreen() {
             {/* Middle solid glowing ring */}
             <View className="absolute inset-2 bg-orange-50 border border-orange-100 rounded-full shadow-sm" />
             {/* Inner Circle Emblem */}
-            <View className="absolute inset-3.5 items-center justify-center rounded-full bg-orange-500 shadow-md shadow-orange-500/30">
-              <Ionicons name="storefront" size={28} color="#ffffff" />
+            <View className="absolute inset-3.5 items-center justify-center rounded-full bg-white shadow-md shadow-orange-500/30 overflow-hidden">
+              <Image source={require("../../assets/icon.png")} style={{ width: '80%', height: '80%', resizeMode: 'contain' }} />
             </View>
           </View>
 

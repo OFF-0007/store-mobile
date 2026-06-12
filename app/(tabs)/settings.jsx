@@ -208,6 +208,27 @@ export default function SettingsScreen() {
           </GlassCard>
         </View>
 
+        {/* Group 3: People & Contacts */}
+        <View>
+          <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">People & Contacts</Text>
+          <GlassCard className="p-0 overflow-hidden">
+            <AccountListItem
+              icon="people-outline"
+              iconBg="bg-blue-500"
+              title="Add Customer"
+              subtitle="Create new customer profiles"
+              onPress={() => router.push("/settings/add-customer")}
+            />
+            <AccountListItem
+              icon="cube-outline"
+              iconBg="bg-indigo-500"
+              title="Add Supplier"
+              subtitle="Create new supplier profiles"
+              onPress={() => router.push("/settings/add-supplier")}
+            />
+          </GlassCard>
+        </View>
+
         {/* Group 3: Analytics */}
         <View>
           <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Reports & Analytics</Text>

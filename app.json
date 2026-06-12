@@ -23,7 +23,11 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.fillosoft.storemanage"
+      "package": "com.fillosoft.storemanage",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -45,9 +49,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "4e7f9354-1fc5-4f9d-87ee-101d96cbb0c2"
+        "projectId": "fccc46cc-3820-43ad-879d-3d1619b33df6"
       }
     },
-    "owner": "fillosoft"
+    "owner": "fillosoftnew"
   }
 }

@@ -165,7 +165,7 @@ export function formatReceipt48mm(sale) {
   addText("------------------------\n\n");
 
   // --- ITEMS LIST ---
-  addText("ITEM NAME   QTY  AMOUNT\n");
+  addText("ITEM NAME  QTY    AMOUNT\n");
   addText("------------------------\n");
 
   (sale.items || []).forEach((item) => {
@@ -173,12 +173,12 @@ export function formatReceipt48mm(sale) {
     const qty = `${item.quantity}`;
     const amount = `Rs.${Math.round(item.subtotal || (item.quantity * (item.price || item.cost_price || 0)))}`;
 
-    // Column widths: Name(12), Qty(3), Amount(9) = 24 total
-    if (name.length > 12) {
+    // Column widths: Name(9), Qty(5), Amount(10) = 24 total
+    if (name.length > 9) {
       addText(`${name}\n`);
-      addText("".padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n");
+      addText("".padEnd(9) + qty.padStart(5) + amount.padStart(10) + "\n");
     } else {
-      addText(name.padEnd(12) + qty.padStart(3) + amount.padStart(9) + "\n");
+      addText(name.padEnd(9) + qty.padStart(5) + amount.padStart(10) + "\n");
     }
   });
   addText("------------------------\n");

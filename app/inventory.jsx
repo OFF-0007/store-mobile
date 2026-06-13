@@ -79,7 +79,7 @@ export default function StockScreen() {
     const errs = {};
     if (!fname.trim()) errs.name = "Name is required";
     if (!fprice || isNaN(+fprice)) errs.price = "Enter a valid price";
-    if (!fstock || isNaN(+fstock)) errs.stock = "Enter a valid stock qty";
+
     if (Object.keys(errs).length) {
       setErrors(errs);
       return;
@@ -92,7 +92,7 @@ export default function StockScreen() {
       category: fcategory || "General",
       price: Number(fprice),
       cost: fcost ? Number(fcost) : undefined,
-      stock: parseInt(fstock, 10),
+      stock: 0,
       low_stock_threshold: parseInt(fthreshold, 10) || 5,
       image: null,
     });
@@ -269,23 +269,8 @@ export default function StockScreen() {
                     className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                   />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                    Stock *
-                  </Text>
-                  <TextInput
-                    value={fstock}
-                    onChangeText={setFstock}
-                    keyboardType="numeric"
-                    placeholder="0"
-                    placeholderTextColor="#94a3b8"
-                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${errors.stock ? "border-rose-300" : "border-slate-200"
-                      }`}
-                  />
-                  {errors.stock && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.stock}</Text>}
                 </View>
               </View>
-
               <View>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
                   Low Stock Alert (qty)

@@ -468,7 +468,7 @@ export default function POSScreen() {
     scannedLock.current = true;
     setTimeout(() => {
       scannedLock.current = false;
-    }, 1500);
+    }, 5000);
 
     const matched = products.find(
       (p) =>

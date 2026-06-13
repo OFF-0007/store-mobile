@@ -82,7 +82,6 @@ export default function HomeScreen() {
 
   const [period, setPeriod] = useState("daily");
   const [refreshing, setRefreshing] = useState(false);
-  const [showLowStockAlert, setShowLowStockAlert] = useState(true);
   const [isFabOpen, setIsFabOpen] = useState(false);
 
   const onRefresh = useCallback(() => {
@@ -97,16 +96,7 @@ export default function HomeScreen() {
   );
 
   const metrics = getDashboardMetrics(period);
-
-  useEffect(() => {
-    if (metrics.lowStockProducts.length > 0) {
-      setShowLowStockAlert(true);
-      const timer = setTimeout(() => {
-        setShowLowStockAlert(false);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [metrics.lowStockProducts.length]);
+  const showLowStockAlert = metrics.lowStockProducts.length > 0;
 
   const insets = useSafeAreaInsets();
 

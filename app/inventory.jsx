@@ -269,7 +269,6 @@ export default function StockScreen() {
                     className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                   />
                 </View>
-                </View>
               </View>
               <View>
                 <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">

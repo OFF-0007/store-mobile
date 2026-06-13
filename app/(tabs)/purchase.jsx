@@ -1397,15 +1397,13 @@ export default function PurchaseScreen() {
 
                 <View>
                   <Text className="text-xs font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
-                    SKU (Optional)
+                    SKU
                   </Text>
                   <TextInput
-                    value={fsku}
-                    onChangeText={setFsku}
-                    placeholder="Auto-generated if left blank"
-                    className={`bg-slate-50 border-2 rounded-xl px-4 py-3 text-slate-800 font-bold ${quickAddErrors.sku ? "border-rose-300" : "border-slate-200"}`}
+                    value="Auto-generated"
+                    readOnly
+                    className="bg-slate-100 border-2 rounded-xl px-4 py-3 text-slate-500 font-bold border-slate-200"
                   />
-                  {quickAddErrors.sku && <Text className="text-rose-500 text-xs mt-1 ml-1">{quickAddErrors.sku}</Text>}
                 </View>
 
                 <View className="flex-row gap-3">

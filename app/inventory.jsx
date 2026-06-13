@@ -203,14 +203,12 @@ export default function StockScreen() {
               <View className="flex-row gap-3">
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                    SKU (optional)
+                    SKU
                   </Text>
                   <TextInput
-                    value={fsku}
-                    onChangeText={setFsku}
-                    placeholder="Auto-generated if empty"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                    value="Auto-generated"
+                    readOnly
+                    className="bg-slate-100 border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-500 text-sm font-bold"
                   />
                 </View>
                 <View className="flex-1">

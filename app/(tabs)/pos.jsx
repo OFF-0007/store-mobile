@@ -103,6 +103,7 @@ export default function POSScreen() {
   const [isPaidAmountEdited, setIsPaidAmountEdited] = useState(false);
   const [isOutsideState, setIsOutsideState] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState("");
+  const [saleDate, setSaleDate] = useState(new Date().toISOString().split("T")[0]);
 
   // Modals Visibility
   const [showUnitModal, setShowUnitModal] = useState(false);
@@ -180,7 +181,7 @@ export default function POSScreen() {
     return products.filter((p) => {
       return (
         p.name.toLowerCase().includes(q) ||
-        p.sku.toLowerCase().includes(q) ||
+        (p.sku && p.sku.toLowerCase().includes(q)) ||
         (p.barcode && p.barcode.toLowerCase().includes(q))
       );
     }).slice(0, 3);
@@ -408,7 +409,7 @@ export default function POSScreen() {
       customer_id: selectedCustomerId,
       customer_name: selectedCustomerId ? null : customerName.trim(),
       customer_phone: selectedCustomerId ? null : customerPhone.trim(),
-      sale_date: new Date().toISOString().split("T")[0],
+      sale_date: saleDate,
       items: preparedItems,
       subtotal: Number(subtotal.toFixed(2)),
       tax: 0,
@@ -440,6 +441,7 @@ export default function POSScreen() {
         // Reset state
         setCart([]);
         setAdditionalNotes("");
+        setSaleDate(new Date().toISOString().split("T")[0]);
         setIsPaidAmountEdited(false);
         setSelectedCustomerId(null);
         setCustomerName("");
@@ -1131,16 +1133,28 @@ export default function POSScreen() {
                   </View>
                 ) : null}
 
-                {/* Notes */}
-                <View>
-                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Notes</Text>
-                  <TextInput
-                    value={additionalNotes}
-                    onChangeText={setAdditionalNotes}
-                    placeholder="Optional notes..."
-                    placeholderTextColor="#94a3b8"
-                    className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 text-sm font-bold"
-                  />
+                {/* Date & Notes */}
+                <View className="flex-row gap-3">
+                  <View className="flex-[0.4]">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Sale Date</Text>
+                    <TextInput
+                      value={saleDate}
+                      onChangeText={setSaleDate}
+                      placeholder="YYYY-MM-DD"
+                      placeholderTextColor="#94a3b8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 text-sm font-bold"
+                    />
+                  </View>
+                  <View className="flex-[0.6]">
+                    <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Notes</Text>
+                    <TextInput
+                      value={additionalNotes}
+                      onChangeText={setAdditionalNotes}
+                      placeholder="Optional notes..."
+                      placeholderTextColor="#94a3b8"
+                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 text-sm font-bold"
+                    />
+                  </View>
                 </View>
 
                 <TouchableOpacity

@@ -8,7 +8,7 @@ import AntDesign from '@expo/vector-icons/AntDesign';
 import { StatusBar } from "expo-status-bar";
 
 export default function TabsLayout() {
-  const { isAuthenticated } = useAuthStore();
+  const { isAuthenticated, user } = useAuthStore();
   const insets = useSafeAreaInsets();
 
   if (!isAuthenticated) {
@@ -57,6 +57,7 @@ export default function TabsLayout() {
           name="pos"
           options={{
             title: "Sell",
+            href: user?.permissions?.includes('sale.create') ? '/pos' : null,
             tabBarIcon: ({ color, size }) => (
               <MaterialIcons name="sell" size={size + 2} color={color} />
             ),
@@ -66,6 +67,7 @@ export default function TabsLayout() {
           name="purchase"
           options={{
             title: "Purchase",
+            href: (user?.permissions?.includes('purchase.create') || user?.permissions?.includes('purchase.view')) ? '/purchase' : null,
             tabBarIcon: ({ color, size }) => (
               <Feather name="shopping-cart" size={size} color={color} />
             ),

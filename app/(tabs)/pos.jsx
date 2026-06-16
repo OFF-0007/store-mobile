@@ -20,7 +20,8 @@ import {
   RefreshControl,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
+import { useAuthStore } from "@/store/authStore";
 import { useMockStore } from "@/store/mockStore";
 import { GlassCard, SkeletonLoader } from "@/components/ui";
 import { printThermalReceipt } from "../../utils/printer";
@@ -59,6 +60,11 @@ const PAYMENT_METHODS = [
 export default function POSScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
+
+  if (!user?.permissions?.includes('sale.create')) {
+    return <Redirect href="/(tabs)" />;
+  }
   const {
     products,
     customers,
@@ -201,13 +207,17 @@ export default function POSScreen() {
     setCart((prev) => {
       const existing = prev.find((item) => item.product_id === product.id);
       if (existing) {
-        if (existing.quantity + qtyToAdd > product.stock) {
+        let newBaseQuantity = existing.quantity + qtyToAdd;
+        if (existing.unit_id == product.secondary_unit_id) {
+            newBaseQuantity = (existing.quantity + qtyToAdd) * (product.conversion_rate || 1);
+        }
+        if (newBaseQuantity > product.stock) {
           Alert.alert("Stock Limit Reached", `Only ${product.stock} units available.`);
           return prev;
         }
         return prev.map((item) =>
           item.product_id === product.id
-            ? { ...item, quantity: item.quantity + qtyToAdd }
+            ? { ...item, quantity: item.quantity + qtyToAdd, base_quantity: newBaseQuantity }
             : item
         );
       }
@@ -219,9 +229,11 @@ export default function POSScreen() {
         ...prev,
         {
           product_id: product.id,
+          product: product,
           name: product.name,
           price: product.price,
           quantity: qtyToAdd,
+          base_quantity: qtyToAdd,
           gst_rate: product.gst || 0,
           discount: 0,
           discount_type: "fixed",
@@ -243,9 +255,16 @@ export default function POSScreen() {
       return;
     }
     setCart((prev) =>
-      prev.map((item) =>
-        item.product_id === id ? { ...item, quantity: qty } : item
-      )
+      prev.map((item) => {
+        if (item.product_id === id) {
+          let newBaseQuantity = qty;
+          if (item.unit_id == item.product.secondary_unit_id) {
+              newBaseQuantity = qty * (item.product.conversion_rate || 1);
+          }
+          return { ...item, quantity: qty, base_quantity: newBaseQuantity };
+        }
+        return item;
+      })
     );
   }, []);
 
@@ -354,9 +373,33 @@ export default function POSScreen() {
   };
 
   const handleSelectUnit = (unit) => {
-    if (activeUnitItem) {
-      updateCartItemField(activeUnitItem.product_id, "unit_id", unit.id);
-      updateCartItemField(activeUnitItem.product_id, "unit", unit.short_name);
+    if (activeUnitItem && activeUnitItem.product) {
+      const product = activeUnitItem.product;
+      let newPrice = product.price;
+      let newBaseQuantity = activeUnitItem.quantity;
+      
+      if (unit.id == product.secondary_unit_id) {
+          if (product.secondary_selling_price) {
+              newPrice = product.secondary_selling_price;
+          } else {
+              newPrice = newPrice * (product.conversion_rate || 1);
+          }
+          newBaseQuantity = activeUnitItem.quantity * (product.conversion_rate || 1);
+      }
+      
+      setCart((prev) =>
+        prev.map((item) =>
+          item.product_id === activeUnitItem.product_id
+            ? {
+                ...item,
+                unit_id: unit.id,
+                unit: unit.short_name || unit.name,
+                price: newPrice,
+                base_quantity: newBaseQuantity
+              }
+            : item
+        )
+      );
     }
     setShowUnitModal(false);
   };
@@ -385,10 +428,10 @@ export default function POSScreen() {
         return;
       }
       const liveProduct = products.find((p) => p.id === item.product_id);
-      if (!liveProduct || liveProduct.stock < item.quantity) {
+      if (!liveProduct || liveProduct.stock < item.base_quantity) {
         Alert.alert(
           "Insufficient Stock",
-          `"${item.name}" has only ${liveProduct?.stock || 0} units left in warehouse.`
+          `"${item.name}" has only ${liveProduct?.stock || 0} base units left in warehouse.`
         );
         return;
       }
@@ -397,7 +440,9 @@ export default function POSScreen() {
     const preparedItems = itemsWithTotals.map((item) => ({
       product_id: item.product_id,
       name: item.name, // Include name for printing
+      unit_id: item.unit_id,
       quantity: item.quantity,
+      base_quantity: item.base_quantity || item.quantity,
       price: item.price,
       tax: item.tax_amount,
       tax_rate: item.gst_rate,
@@ -788,12 +833,23 @@ export default function POSScreen() {
                           {item.name}
                         </Text>
                         <Text className="text-slate-400 text-[10px] font-bold">
-                          ₹{item.price} • Stock: {item.available_stock} • {item.unit ?? "Unit"}
+                          ₹{item.price} • Stock: {item.available_stock} 
                         </Text>
                       </View>
-                      <Text className="text-orange-500 font-black text-sm font-mono">
-                        {fmt(item.subtotal)}
-                      </Text>
+                      <View className="items-end gap-1">
+                        <Text className="text-orange-500 font-black text-sm font-mono">
+                          {fmt(item.subtotal)}
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => handleOpenUnitPicker(item)}
+                          className="bg-slate-200 px-2 py-0.5 rounded flex-row items-center gap-1"
+                        >
+                          <Text className="text-slate-700 text-[9px] font-black uppercase">
+                            {item.unit ?? "Unit"}
+                          </Text>
+                          <Ionicons name="caret-down" size={10} color="#334155" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
                     <View className="flex-row justify-between items-center">
@@ -1603,6 +1659,52 @@ export default function POSScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+      {/* Unit Selection Modal */}
+      <Modal visible={showUnitModal} animationType="fade" transparent>
+        <View className="flex-1 bg-black/60 justify-center items-center px-4">
+          <View className="bg-white rounded-3xl p-5 w-full max-w-sm shadow-2xl" style={{ maxHeight: '80%' }}>
+            <Text className="text-lg font-black text-slate-800 uppercase mb-4 text-center tracking-tight">Select Unit</Text>
+            
+            <ScrollView className="mb-2">
+              {units.map((unit) => {
+                const product = activeUnitItem?.product;
+                let isPrimary = product && product.unit_id == unit.id;
+                let isSecondary = product && product.secondary_unit_id == unit.id;
+                
+                let displayName = unit.short_name || unit.name;
+                let subtitle = "";
+                
+                if (isPrimary) {
+                  subtitle = "(Base Unit)";
+                } else if (isSecondary) {
+                  subtitle = `(1 = ${product.conversion_rate || 1} Base)`;
+                }
+                
+                return (
+                  <TouchableOpacity
+                    key={unit.id}
+                    onPress={() => handleSelectUnit(unit)}
+                    className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+                  >
+                    <Text className="text-sm font-bold text-slate-800">
+                      {displayName} {subtitle && <Text className="text-slate-400 text-xs">{subtitle}</Text>}
+                    </Text>
+                    {activeUnitItem?.unit_id == unit.id && <Ionicons name="checkmark-circle" size={20} color="#f97316" />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              onPress={() => setShowUnitModal(false)}
+              activeOpacity={0.8}
+              className="mt-6 bg-slate-100 rounded-xl py-3 items-center shadow-sm"
+            >
+              <Text className="text-slate-600 font-black uppercase tracking-wider text-xs">Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );

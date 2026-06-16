@@ -15,7 +15,8 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams, Redirect } from "expo-router";
+import { useAuthStore } from "@/store/authStore";
 import apiClient from "@/lib/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassCard, CardSkeleton } from "@/components/ui";
@@ -37,6 +38,11 @@ export default function PurchaseReturnScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
+
+  if (!user?.permissions?.includes('purchase.create')) {
+    return <Redirect href="/(tabs)" />;
+  }
 
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(false);

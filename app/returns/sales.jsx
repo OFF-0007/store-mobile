@@ -15,7 +15,8 @@ import {
   Modal,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
+import { useRouter, Redirect } from "expo-router";
+import { useAuthStore } from "@/store/authStore";
 import apiClient from "@/lib/api/client";
 import { Ionicons } from "@expo/vector-icons";
 import { GlassCard, CardSkeleton } from "@/components/ui";
@@ -36,6 +37,11 @@ const fmt = (val) => `₹${Number(val || 0).toLocaleString("en-IN", { minimumFra
 export default function SalesReturnScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const user = useAuthStore((s) => s.user);
+
+  if (!user?.permissions?.includes('sale.create')) {
+    return <Redirect href="/(tabs)" />;
+  }
 
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(false);

@@ -32,11 +32,12 @@ const fmt = (val) =>
 export default function StockScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { products, categories, addProduct, deleteProduct, adjustStock, fetchProducts } =
+  const { products, categories, units, addProduct, deleteProduct, adjustStock, fetchProducts, fetchUnits } =
     useMockStore();
 
   useEffect(() => {
     fetchProducts();
+    fetchUnits();
   }, []);
 
   const [search, setSearch] = useState("");
@@ -54,6 +55,21 @@ export default function StockScreen() {
   const [fcost, setFcost] = useState("");
   const [fstock, setFstock] = useState("");
   const [fthreshold, setFthreshold] = useState("5");
+  
+  // Unit States
+  const [funitId, setFunitId] = useState(null);
+  const [funitName, setFunitName] = useState("");
+  const [showPrimaryUnitModal, setShowPrimaryUnitModal] = useState(false);
+
+  // Secondary Unit States
+  const [fsecUnitId, setFsecUnitId] = useState(null);
+  const [fsecUnitName, setFsecUnitName] = useState("");
+  const [fconvRate, setFconvRate] = useState("");
+  
+  const [showUnitModal, setShowUnitModal] = useState(false);
+  const [fsecPrice, setFsecPrice] = useState("");
+  const [fsecCost, setFsecCost] = useState("");
+
   const [errors, setErrors] = useState({});
 
   // ── Filtered list ──────────────────────────────────────────────────────────
@@ -94,11 +110,17 @@ export default function StockScreen() {
       cost: fcost ? Number(fcost) : undefined,
       stock: 0,
       low_stock_threshold: parseInt(fthreshold, 10) || 5,
+      unit_id: funitId || null,
+      secondary_unit_id: fsecUnitId || null,
+      conversion_rate: fconvRate ? Number(fconvRate) : null,
+      secondary_selling_price: fsecPrice ? Number(fsecPrice) : null,
+      secondary_purchase_price: fsecCost ? Number(fsecCost) : null,
       image: null,
     });
 
     setFname(""); setFsku(""); setFbarcode(""); setFcategory("");
     setFprice(""); setFcost(""); setFstock(""); setFthreshold("5");
+    setFunitId(null); setFunitName(""); setFsecUnitId(null); setFsecUnitName(""); setFconvRate(""); setFsecPrice(""); setFsecCost("");
     setErrors({});
     setShowAddForm(false);
     Alert.alert("Product Added", `"${fname}" has been added to inventory.`);
@@ -238,6 +260,23 @@ export default function StockScreen() {
                     className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                   />
                 </View>
+              </View>
+
+              <View className="flex-row gap-3">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Primary Unit
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setShowPrimaryUnitModal(true)}
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
+                  >
+                    <Text className={`text-sm font-bold ${funitName ? 'text-slate-800' : 'text-slate-400'}`}>
+                      {funitName || "Select Unit"}
+                    </Text>
+                    <Ionicons name="caret-down" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
                     Price ₹ *
@@ -269,19 +308,76 @@ export default function StockScreen() {
                     className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
                   />
                 </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Low Alert
+                  </Text>
+                  <TextInput
+                    value={fthreshold}
+                    onChangeText={setFthreshold}
+                    keyboardType="numeric"
+                    placeholder="5"
+                    placeholderTextColor="#94a3b8"
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                  />
+                </View>
               </View>
-              <View>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                  Low Stock Alert (qty)
+
+              <View className="mt-2 p-3 bg-orange-50 rounded-2xl border border-orange-100">
+                <Text className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-3 ml-1">
+                  Wholesale / Secondary Unit (Optional)
                 </Text>
-                <TextInput
-                  value={fthreshold}
-                  onChangeText={setFthreshold}
-                  keyboardType="numeric"
-                  placeholder="5"
-                  placeholderTextColor="#94a3b8"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                />
+                
+                <View className="flex-row gap-3 mb-3">
+                  <View className="flex-1">
+                    <Text className="text-[9px] font-black text-slate-500 uppercase mb-1 ml-1">Unit Name</Text>
+                    <TouchableOpacity
+                      onPress={() => setShowUnitModal(true)}
+                      className="bg-white border-2 border-orange-200 rounded-xl px-3 py-2 flex-row justify-between items-center"
+                    >
+                      <Text className={`text-xs font-bold ${fsecUnitName ? 'text-slate-800' : 'text-slate-400'}`}>
+                        {fsecUnitName || "Select Unit"}
+                      </Text>
+                      <Ionicons name="caret-down" size={12} color="#f97316" />
+                    </TouchableOpacity>
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[9px] font-black text-slate-500 uppercase mb-1 ml-1">Equals Base Qty</Text>
+                    <TextInput
+                      value={fconvRate}
+                      onChangeText={setFconvRate}
+                      keyboardType="numeric"
+                      placeholder="e.g. 60"
+                      placeholderTextColor="#94a3b8"
+                      className="bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-slate-800 text-xs font-bold"
+                    />
+                  </View>
+                </View>
+
+                <View className="flex-row gap-3">
+                  <View className="flex-1">
+                    <Text className="text-[9px] font-black text-slate-500 uppercase mb-1 ml-1">Sell Price (Per Unit)</Text>
+                    <TextInput
+                      value={fsecPrice}
+                      onChangeText={setFsecPrice}
+                      keyboardType="numeric"
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      className="bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-slate-800 text-xs font-bold"
+                    />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-[9px] font-black text-slate-500 uppercase mb-1 ml-1">Cost Price</Text>
+                    <TextInput
+                      value={fsecCost}
+                      onChangeText={setFsecCost}
+                      keyboardType="numeric"
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      className="bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-slate-800 text-xs font-bold"
+                    />
+                  </View>
+                </View>
               </View>
 
               <TouchableOpacity
@@ -457,9 +553,105 @@ export default function StockScreen() {
             </View>
           )}
         </GlassCard>
+        <View className="h-20" />
       </KeyboardAwareScrollView>
 
-      {/* Product Detail Modal */}
+      <Modal visible={showPrimaryUnitModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-end">
+          <View className="bg-white rounded-t-3xl p-5 shadow-2xl pb-10" style={{ maxHeight: '80%' }}>
+            <View className="flex-row justify-between items-center mb-4 border-b border-slate-100 pb-3">
+              <Text className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Primary Unit</Text>
+              <TouchableOpacity onPress={() => setShowPrimaryUnitModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView className="mb-4">
+              <TouchableOpacity
+                onPress={() => {
+                  setFunitId(null);
+                  setFunitName("");
+                  setShowPrimaryUnitModal(false);
+                }}
+                className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+              >
+                <Text className="text-sm font-bold text-slate-500">None</Text>
+                {!funitId && <Ionicons name="checkmark-circle" size={20} color="#f97316" />}
+              </TouchableOpacity>
+
+              {units.map((unit) => (
+                <TouchableOpacity
+                  key={unit.id}
+                  onPress={() => {
+                    setFunitId(unit.id);
+                    setFunitName(unit.short_name || unit.name);
+                    setShowPrimaryUnitModal(false);
+                  }}
+                  className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+                >
+                  <Text className="text-sm font-bold text-slate-800">
+                    {unit.name} {unit.short_name && `(${unit.short_name})`}
+                  </Text>
+                  {funitId === unit.id && <Ionicons name="checkmark-circle" size={20} color="#f97316" />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Unit Selection Modal */}
+      <Modal visible={showUnitModal} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-end">
+          <View className="bg-white rounded-t-3xl p-5 shadow-2xl pb-10" style={{ maxHeight: '80%' }}>
+            <View className="flex-row justify-between items-center mb-4 border-b border-slate-100 pb-3">
+              <Text className="text-lg font-black text-slate-800 uppercase tracking-tight">Select Secondary Unit</Text>
+              <TouchableOpacity onPress={() => setShowUnitModal(false)}>
+                <Ionicons name="close-circle" size={28} color="#94a3b8" />
+              </TouchableOpacity>
+            </View>
+            
+            <ScrollView className="mb-4">
+              <TouchableOpacity
+                onPress={() => {
+                  setFsecUnitId(null);
+                  setFsecUnitName("");
+                  setShowUnitModal(false);
+                }}
+                className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+              >
+                <Text className="text-sm font-bold text-slate-500">None</Text>
+                {!fsecUnitId && <Ionicons name="checkmark-circle" size={20} color="#f97316" />}
+              </TouchableOpacity>
+
+              {units.map((unit) => (
+                <TouchableOpacity
+                  key={unit.id}
+                  onPress={() => {
+                    setFsecUnitId(unit.id);
+                    setFsecUnitName(unit.short_name || unit.name);
+                    setShowUnitModal(false);
+                  }}
+                  className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+                >
+                  <Text className="text-sm font-bold text-slate-800">
+                    {unit.name} {unit.short_name && `(${unit.short_name})`}
+                  </Text>
+                  {fsecUnitId === unit.id && <Ionicons name="checkmark-circle" size={20} color="#f97316" />}
+                </TouchableOpacity>
+              ))}
+              {units.length === 0 && (
+                <View className="py-8 items-center">
+                  <Text className="text-slate-400 font-bold mb-2">No units found</Text>
+                  <Text className="text-slate-400 text-xs text-center">Add units in Settings first.</Text>
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
       <Modal
         visible={!!detailProduct}
         animationType="slide"

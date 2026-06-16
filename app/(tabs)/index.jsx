@@ -153,7 +153,7 @@ export default function HomeScreen() {
       >
 
         {/* Action Needed: Supplier Dues */}
-        {metrics.outstandingSupplierDue > 0 && (
+        {(metrics.outstandingSupplierDue > 0 && user?.permissions?.includes('supplier.view')) && (
           <TouchableOpacity
             className="mb-5 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-red-100 flex-row items-center justify-between"
           >
@@ -174,7 +174,7 @@ export default function HomeScreen() {
         )}
 
         {/* Inventory Watchlist (Horizontal Scroll) */}
-        {(showLowStockAlert && metrics.lowStockProducts.length > 0) && (
+        {(showLowStockAlert && metrics.lowStockProducts.length > 0 && user?.permissions?.includes('product.view')) && (
           <View className="mb-6">
             <Text className="text-slate-800 font-black text-lg mb-3 px-1">Inventory Watchlist</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} className="overflow-visible pl-1 pb-2">
@@ -200,144 +200,152 @@ export default function HomeScreen() {
           </View>
         )}
 
-        <View className="flex-row items-center justify-between mb-3 px-1 mt-2">
-          <Text className="text-slate-800 font-black text-lg">Overview</Text>
-          <View className="bg-orange-100 px-3 py-1.5 rounded-lg border border-orange-200">
-            <Text className="text-orange-700 font-bold text-[10px] uppercase tracking-wider">Today</Text>
-          </View>
-        </View>
-
-        {/* Stat Cards Grid */}
-        <View className="flex-row flex-wrap justify-between mb-4">
-          <StatCard title="Revenue" value={fmt(metrics.totalSalesBilled)} icon={<Feather name="trending-up" size={18} color="#10b981" />} colorClass="emerald" />
-          <StatCard title="Cash In" value={fmt(metrics.totalSalesReceived)} icon={<Feather name="dollar-sign" size={18} color="#3b82f6" />} colorClass="blue" />
-          <StatCard
-            title="Purchases"
-            value={fmt(metrics.totalPurchasesBilled)}
-            icon={<Feather name="shopping-bag" size={18} color="#f97316" />}
-            colorClass="orange"
-            subLabel="Returned"
-            subValue={metrics.totalPurchaseReturns > 0 ? fmt(metrics.totalPurchaseReturns) : undefined}
-          />
-          <StatCard title="Expenses" value={fmt(metrics.totalExpenses)} icon={<Feather name="file-text" size={18} color="#f43f5e" />} colorClass="rose" />
-        </View>
-
-        {/* Smart Insights & Goals */}
-        <View className="flex-row gap-3 mb-6">
-          {/* Daily Goal */}
-          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-slate-100 justify-between">
-            <View className="flex-row items-center mb-2">
-              <View className="w-7 h-7 rounded-full bg-indigo-50 items-center justify-center mr-2">
-                <Feather name="target" size={14} color="#6366f1" />
+        {user?.permissions?.includes('report.view') && (
+          <>
+            <View className="flex-row items-center justify-between mb-3 px-1 mt-2">
+              <Text className="text-slate-800 font-black text-lg">Overview</Text>
+              <View className="bg-orange-100 px-3 py-1.5 rounded-lg border border-orange-200">
+                <Text className="text-orange-700 font-bold text-[10px] uppercase tracking-wider">Today</Text>
               </View>
-              <Text className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Daily Goal</Text>
             </View>
-            <View>
-              <Text className="text-slate-800 font-black text-lg mb-1">82%</Text>
-              <View className="w-full h-1.5 bg-slate-100 rounded-full mb-1.5 overflow-hidden">
-                <View className="h-full bg-indigo-500 rounded-full" style={{ width: '82%' }} />
-              </View>
-              <Text className="text-slate-400 text-[9px] font-bold">₹{fmt(metrics.totalSalesBilled).replace('₹', '')} / ₹50,000</Text>
-            </View>
-          </View>
 
-          {/* AI Insight */}
-          <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-slate-100 justify-between">
-            <View className="flex-row items-center mb-2">
-              <View className="w-7 h-7 rounded-full bg-orange-50 items-center justify-center mr-2 border border-orange-100">
-                <MaterialIcons name="auto-awesome" size={14} color="#f97316" />
-              </View>
-              <Text className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Insight</Text>
+            {/* Stat Cards Grid */}
+            <View className="flex-row flex-wrap justify-between mb-4">
+              <StatCard title="Revenue" value={fmt(metrics.totalSalesBilled)} icon={<Feather name="trending-up" size={18} color="#10b981" />} colorClass="emerald" />
+              <StatCard title="Cash In" value={fmt(metrics.totalSalesReceived)} icon={<Feather name="dollar-sign" size={18} color="#3b82f6" />} colorClass="blue" />
+              <StatCard
+                title="Purchases"
+                value={fmt(metrics.totalPurchasesBilled)}
+                icon={<Feather name="shopping-bag" size={18} color="#f97316" />}
+                colorClass="orange"
+                subLabel="Returned"
+                subValue={metrics.totalPurchaseReturns > 0 ? fmt(metrics.totalPurchaseReturns) : undefined}
+              />
+              <StatCard title="Expenses" value={fmt(metrics.totalExpenses)} icon={<Feather name="file-text" size={18} color="#f43f5e" />} colorClass="rose" />
             </View>
-            <Text className="text-slate-700 text-[11px] font-semibold leading-snug">
-              Sales look great! You're on track to beat yesterday's revenue by <Text className="text-emerald-500 font-black">15%</Text>.
-            </Text>
-          </View>
-        </View>
+
+            {/* Smart Insights & Goals */}
+            <View className="flex-row gap-3 mb-6">
+              {/* Daily Goal */}
+              <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-slate-100 justify-between">
+                <View className="flex-row items-center mb-2">
+                  <View className="w-7 h-7 rounded-full bg-indigo-50 items-center justify-center mr-2">
+                    <Feather name="target" size={14} color="#6366f1" />
+                  </View>
+                  <Text className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Daily Goal</Text>
+                </View>
+                <View>
+                  <Text className="text-slate-800 font-black text-lg mb-1">82%</Text>
+                  <View className="w-full h-1.5 bg-slate-100 rounded-full mb-1.5 overflow-hidden">
+                    <View className="h-full bg-indigo-500 rounded-full" style={{ width: '82%' }} />
+                  </View>
+                  <Text className="text-slate-400 text-[9px] font-bold">₹{fmt(metrics.totalSalesBilled).replace('₹', '')} / ₹50,000</Text>
+                </View>
+              </View>
+
+              {/* AI Insight */}
+              <View className="flex-1 bg-white rounded-2xl p-4 shadow-sm elevation-1 border border-slate-100 justify-between">
+                <View className="flex-row items-center mb-2">
+                  <View className="w-7 h-7 rounded-full bg-orange-50 items-center justify-center mr-2 border border-orange-100">
+                    <MaterialIcons name="auto-awesome" size={14} color="#f97316" />
+                  </View>
+                  <Text className="text-slate-500 font-bold text-[10px] uppercase tracking-wider">Insight</Text>
+                </View>
+                <Text className="text-slate-700 text-[11px] font-semibold leading-snug">
+                  Sales look great! You're on track to beat yesterday's revenue by <Text className="text-emerald-500 font-black">15%</Text>.
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Recent Sales Activity */}
-        <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-slate-800 font-black text-base">Recent Sales</Text>
-            <TouchableOpacity onPress={() => router.push("/reports/sales")}>
-              <Text className="text-orange-500 font-bold text-xs">View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {metrics.recentSales.length === 0 ? (
-            <View className="items-center py-6">
-              <View className="w-14 h-14 bg-slate-50 rounded-full items-center justify-center mb-3">
-                <Feather name="inbox" size={24} color="#cbd5e1" />
-              </View>
-              <Text className="text-slate-400 text-sm font-medium">No sales recorded today</Text>
+        {user?.permissions?.includes('sale.view') && (
+          <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-slate-800 font-black text-base">Recent Sales</Text>
+              <TouchableOpacity onPress={() => router.push("/reports/sales")}>
+                <Text className="text-orange-500 font-bold text-xs">View All</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            metrics.recentSales.slice(0, 4).map((sale, i) => (
-              <View
-                key={sale.id}
-                className={`flex-row items-center py-3.5 ${i < Math.min(metrics.recentSales.length - 1, 3) ? "border-b border-slate-100" : ""}`}
-              >
-                <View className="w-10 h-10 bg-orange-50 rounded-full items-center justify-center mr-3">
-                  <Feather name="user" size={16} color="#f97316" />
+
+            {metrics.recentSales.length === 0 ? (
+              <View className="items-center py-6">
+                <View className="w-14 h-14 bg-slate-50 rounded-full items-center justify-center mb-3">
+                  <Feather name="inbox" size={24} color="#cbd5e1" />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-slate-800 text-sm font-bold mb-0.5" numberOfLines={1}>
-                    {sale.customer_name ?? "Walk-in"}
-                  </Text>
-                  <Text className="text-slate-400 text-[11px] font-medium">{sale.reference}</Text>
-                </View>
-                <View className="items-end pl-2">
-                  <Text className="text-slate-800 text-sm font-black mb-1.5 font-mono">
-                    {fmt(sale.total)}
-                  </Text>
-                  <Badge status={sale.status} />
-                </View>
+                <Text className="text-slate-400 text-sm font-medium">No sales recorded today</Text>
               </View>
-            ))
-          )}
-        </View>
+            ) : (
+              metrics.recentSales.slice(0, 4).map((sale, i) => (
+                <View
+                  key={sale.id}
+                  className={`flex-row items-center py-3.5 ${i < Math.min(metrics.recentSales.length - 1, 3) ? "border-b border-slate-100" : ""}`}
+                >
+                  <View className="w-10 h-10 bg-orange-50 rounded-full items-center justify-center mr-3">
+                    <Feather name="user" size={16} color="#f97316" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-slate-800 text-sm font-bold mb-0.5" numberOfLines={1}>
+                      {sale.customer_name ?? "Walk-in"}
+                    </Text>
+                    <Text className="text-slate-400 text-[11px] font-medium">{sale.reference}</Text>
+                  </View>
+                  <View className="items-end pl-2">
+                    <Text className="text-slate-800 text-sm font-black mb-1.5 font-mono">
+                      {fmt(sale.total)}
+                    </Text>
+                    <Badge status={sale.status} />
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        )}
 
         {/* Recent Procurements */}
-        <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
-          <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-slate-800 font-black text-base">Recent Procurements</Text>
-            <TouchableOpacity onPress={() => router.push("/reports/purchases")}>
-              <Text className="text-orange-500 font-bold text-xs">View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {metrics.recentPurchases.length === 0 ? (
-            <View className="items-center py-6">
-              <View className="w-14 h-14 bg-slate-50 rounded-full items-center justify-center mb-3">
-                <Feather name="package" size={24} color="#cbd5e1" />
-              </View>
-              <Text className="text-slate-400 text-sm font-medium">No purchases recorded yet</Text>
+        {user?.permissions?.includes('purchase.view') && (
+          <View className="bg-white rounded-2xl p-5 shadow-sm elevation-1 border border-slate-100 mb-5">
+            <View className="flex-row items-center justify-between mb-4">
+              <Text className="text-slate-800 font-black text-base">Recent Procurements</Text>
+              <TouchableOpacity onPress={() => router.push("/reports/purchases")}>
+                <Text className="text-orange-500 font-bold text-xs">View All</Text>
+              </TouchableOpacity>
             </View>
-          ) : (
-            metrics.recentPurchases.slice(0, 4).map((pur, i) => (
-              <View
-                key={pur.id}
-                className={`flex-row items-center py-3.5 ${i < Math.min(metrics.recentPurchases.length - 1, 3) ? "border-b border-slate-100" : ""}`}
-              >
-                <View className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center mr-3">
-                  <Feather name="briefcase" size={16} color="#64748b" />
+
+            {metrics.recentPurchases.length === 0 ? (
+              <View className="items-center py-6">
+                <View className="w-14 h-14 bg-slate-50 rounded-full items-center justify-center mb-3">
+                  <Feather name="package" size={24} color="#cbd5e1" />
                 </View>
-                <View className="flex-1">
-                  <Text className="text-slate-800 text-sm font-bold mb-0.5" numberOfLines={1}>
-                    {pur.supplier_name}
-                  </Text>
-                  <Text className="text-slate-400 text-[11px] font-medium">{pur.reference}</Text>
-                </View>
-                <View className="items-end pl-2">
-                  <Text className="text-slate-800 text-sm font-black mb-1.5 font-mono">
-                    {fmt(pur.grand_total)}
-                  </Text>
-                  <Badge status={pur.payment_status} />
-                </View>
+                <Text className="text-slate-400 text-sm font-medium">No purchases recorded yet</Text>
               </View>
-            ))
-          )}
-        </View>
+            ) : (
+              metrics.recentPurchases.slice(0, 4).map((pur, i) => (
+                <View
+                  key={pur.id}
+                  className={`flex-row items-center py-3.5 ${i < Math.min(metrics.recentPurchases.length - 1, 3) ? "border-b border-slate-100" : ""}`}
+                >
+                  <View className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center mr-3">
+                    <Feather name="briefcase" size={16} color="#64748b" />
+                  </View>
+                  <View className="flex-1">
+                    <Text className="text-slate-800 text-sm font-bold mb-0.5" numberOfLines={1}>
+                      {pur.supplier_name}
+                    </Text>
+                    <Text className="text-slate-400 text-[11px] font-medium">{pur.reference}</Text>
+                  </View>
+                  <View className="items-end pl-2">
+                    <Text className="text-slate-800 text-sm font-black mb-1.5 font-mono">
+                      {fmt(pur.grand_total)}
+                    </Text>
+                    <Badge status={pur.payment_status} />
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        )}
 
       </ScrollView>
 
@@ -354,45 +362,53 @@ export default function HomeScreen() {
       <View className="absolute bottom-6 right-6 z-50 items-end">
         {isFabOpen && (
           <View className="items-end mb-4">
-            <TouchableOpacity
-              className="flex-row items-center mb-4"
-              onPress={() => { setIsFabOpen(false); router.push("/(tabs)/reports"); }}
-            >
-              <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Reports</Text>
-              <View className="w-12 h-12 bg-indigo-500 rounded-full items-center justify-center shadow-md elevation-3">
-                <Feather name="pie-chart" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            {user?.permissions?.includes('report.view') && (
+              <TouchableOpacity
+                className="flex-row items-center mb-4"
+                onPress={() => { setIsFabOpen(false); router.push("/(tabs)/reports"); }}
+              >
+                <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Reports</Text>
+                <View className="w-12 h-12 bg-indigo-500 rounded-full items-center justify-center shadow-md elevation-3">
+                  <Feather name="pie-chart" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              className="flex-row items-center mb-4"
-              onPress={() => { setIsFabOpen(false); router.push("/inventory"); }}
-            >
-              <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Stock</Text>
-              <View className="w-12 h-12 bg-blue-500 rounded-full items-center justify-center shadow-md elevation-3">
-                <Feather name="box" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            {user?.permissions?.includes('product.view') && (
+              <TouchableOpacity
+                className="flex-row items-center mb-4"
+                onPress={() => { setIsFabOpen(false); router.push("/inventory"); }}
+              >
+                <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Stock</Text>
+                <View className="w-12 h-12 bg-blue-500 rounded-full items-center justify-center shadow-md elevation-3">
+                  <Feather name="box" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              className="flex-row items-center mb-4"
-              onPress={() => { setIsFabOpen(false); router.push("/purchase"); }}
-            >
-              <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Procure</Text>
-              <View className="w-12 h-12 bg-orange-500 rounded-full items-center justify-center shadow-md elevation-3">
-                <Feather name="truck" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            {user?.permissions?.includes('purchase.create') && (
+              <TouchableOpacity
+                className="flex-row items-center mb-4"
+                onPress={() => { setIsFabOpen(false); router.push("/purchase"); }}
+              >
+                <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">Procure</Text>
+                <View className="w-12 h-12 bg-orange-500 rounded-full items-center justify-center shadow-md elevation-3">
+                  <Feather name="truck" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )}
 
-            <TouchableOpacity
-              className="flex-row items-center mb-3"
-              onPress={() => { setIsFabOpen(false); router.push("/pos"); }}
-            >
-              <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">New Sale</Text>
-              <View className="w-12 h-12 bg-emerald-500 rounded-full items-center justify-center shadow-md elevation-3">
-                <Feather name="shopping-cart" size={20} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            {user?.permissions?.includes('sale.create') && (
+              <TouchableOpacity
+                className="flex-row items-center mb-3"
+                onPress={() => { setIsFabOpen(false); router.push("/pos"); }}
+              >
+                <Text className="bg-white px-3 py-1.5 rounded-lg shadow-sm elevation-2 mr-3 font-bold text-slate-700 text-xs">New Sale</Text>
+                <View className="w-12 h-12 bg-emerald-500 rounded-full items-center justify-center shadow-md elevation-3">
+                  <Feather name="shopping-cart" size={20} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 

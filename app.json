@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "StoreMan",
-    "slug": "storeman",
+    "slug": "storeman-new",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -49,9 +49,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fccc46cc-3820-43ad-879d-3d1619b33df6"
+        "projectId": "63c57c07-fc13-4f7d-aede-0a84401e28b3"
       }
     },
-    "owner": "fillosoftnew"
+    "owner": "fillosoft3"
   }
 }

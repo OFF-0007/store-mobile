@@ -156,13 +156,15 @@ export default function SettingsScreen() {
         <View>
           <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Profile & Business</Text>
           <GlassCard className="p-0 overflow-hidden">
-            <AccountListItem
-              icon="business-outline"
-              iconBg="bg-indigo-500"
-              title="Store Settings"
-              subtitle="Configure address, contact & GST details"
-              onPress={() => router.push("/settings/store")}
-            />
+            {user?.permissions?.includes('store.edit') && (
+              <AccountListItem
+                icon="business-outline"
+                iconBg="bg-indigo-500"
+                title="Store Settings"
+                subtitle="Configure address, contact & GST details"
+                onPress={() => router.push("/settings/store")}
+              />
+            )}
             <AccountListItem
               icon="person-outline"
               iconBg="bg-blue-500"
@@ -170,13 +172,15 @@ export default function SettingsScreen() {
               subtitle="Update password, email & credentials"
               onPress={() => router.push("/settings/profile")}
             />
-            <AccountListItem
-              icon="cube-outline"
-              iconBg="bg-emerald-600"
-              title="Warehouse Creation"
-              subtitle="Create & manage warehouse locations"
-              onPress={() => router.push("/settings/warehouse")}
-            />
+            {user?.permissions?.includes('warehouse.create') && (
+              <AccountListItem
+                icon="cube-outline"
+                iconBg="bg-emerald-600"
+                title="Warehouse Creation"
+                subtitle="Create & manage warehouse locations"
+                onPress={() => router.push("/settings/warehouse")}
+              />
+            )}
           </GlassCard>
         </View>
 
@@ -198,50 +202,117 @@ export default function SettingsScreen() {
               subtitle="Configure layout & print diagnostics"
               onPress={() => router.push("/settings/printer")}
             />
-            <AccountListItem
-              icon="settings-outline"
-              iconBg="bg-orange-500"
-              title="System Settings"
-              subtitle="Invoice prefixes & base currency symbol"
-              onPress={() => router.push("/settings/system")}
-            />
+            {user?.permissions?.includes('store.edit') && (
+              <AccountListItem
+                icon="settings-outline"
+                iconBg="bg-orange-500"
+                title="System Settings"
+                subtitle="Invoice prefixes & base currency symbol"
+                onPress={() => router.push("/settings/system")}
+              />
+            )}
           </GlassCard>
         </View>
 
         {/* Group 3: People & Contacts */}
+        {(user?.permissions?.includes('customer.create') || user?.permissions?.includes('supplier.create')) && (
+          <View>
+            <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">People & Contacts</Text>
+            <GlassCard className="p-0 overflow-hidden">
+              {user?.permissions?.includes('customer.create') && (
+                <AccountListItem
+                  icon="people-outline"
+                  iconBg="bg-blue-500"
+                  title="Add Customer"
+                  subtitle="Create new customer profiles"
+                  onPress={() => router.push("/settings/add-customer")}
+                />
+              )}
+              {user?.permissions?.includes('supplier.create') && (
+                <AccountListItem
+                  icon="cube-outline"
+                  iconBg="bg-indigo-500"
+                  title="Add Supplier"
+                  subtitle="Create new supplier profiles"
+                  onPress={() => router.push("/settings/add-supplier")}
+                />
+              )}
+            </GlassCard>
+          </View>
+        )}
+
+        {/* Group 3.5: Inventory & Finance */}
         <View>
-          <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">People & Contacts</Text>
+          <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Inventory & Finance</Text>
           <GlassCard className="p-0 overflow-hidden">
+            {user?.permissions?.includes('brand.view') && (
+              <AccountListItem
+                icon="pricetag-outline"
+                iconBg="bg-rose-500"
+                title="Brands"
+                subtitle="Manage product brands"
+                onPress={() => router.push("/settings/brands")}
+              />
+            )}
+            {user?.permissions?.includes('category.view') && (
+              <AccountListItem
+                icon="grid-outline"
+                iconBg="bg-fuchsia-500"
+                title="Categories"
+                subtitle="Manage product categories"
+                onPress={() => router.push("/settings/categories")}
+              />
+            )}
             <AccountListItem
-              icon="people-outline"
-              iconBg="bg-blue-500"
-              title="Add Customer"
-              subtitle="Create new customer profiles"
-              onPress={() => router.push("/settings/add-customer")}
+              icon="layers-outline"
+              iconBg="bg-cyan-500"
+              title="Variants"
+              subtitle="Manage product variants"
+              onPress={() => router.push("/settings/variants")}
             />
+            {user?.permissions?.includes('unit.view') && (
+              <AccountListItem
+                icon="scale-outline"
+                iconBg="bg-yellow-500"
+                title="Units"
+                subtitle="Manage units of measurement"
+                onPress={() => router.push("/settings/units")}
+              />
+            )}
             <AccountListItem
-              icon="cube-outline"
-              iconBg="bg-indigo-500"
-              title="Add Supplier"
-              subtitle="Create new supplier profiles"
-              onPress={() => router.push("/settings/add-supplier")}
+              icon="receipt-outline"
+              iconBg="bg-emerald-500"
+              title="Taxes / GST"
+              subtitle="Manage tax rates"
+              onPress={() => router.push("/settings/taxes")}
             />
+            {user?.permissions?.includes('expense.view') && (
+              <AccountListItem
+                icon="wallet-outline"
+                iconBg="bg-red-500"
+                title="Expenses"
+                subtitle="Manage and view expenses"
+                onPress={() => router.push("/settings/expenses")}
+              />
+            )}
           </GlassCard>
         </View>
 
-        {/* Group 3: Analytics */}
-        <View>
-          <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Reports & Analytics</Text>
-          <GlassCard className="p-0 overflow-hidden">
-            <AccountListItem
-              icon="bar-chart-outline"
-              iconBg="bg-violet-500"
-              title="Business Reports"
-              subtitle="View customer, supplier & order summaries"
-              onPress={() => router.push("/(tabs)/reports")}
-            />
-          </GlassCard>
-        </View>
+        {/* Group 4: Analytics */}
+        {user?.permissions?.includes('report.view') && (
+          <View>
+            <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2.5 ml-1">Reports & Analytics</Text>
+            <GlassCard className="p-0 overflow-hidden">
+              <AccountListItem
+                icon="bar-chart-outline"
+                iconBg="bg-violet-500"
+                title="Business Reports"
+                subtitle="View customer, supplier & order summaries"
+                onPress={() => router.push("/(tabs)/reports")}
+              />
+            </GlassCard>
+          </View>
+        )}
 
 
         {/* Sign Out Action */}

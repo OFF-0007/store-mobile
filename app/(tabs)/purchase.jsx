@@ -426,11 +426,8 @@ export default function PurchaseScreen() {
       setScanQuantity("1");
       setShowScanQuantityModal(true);
     } else {
-      // Direct to Quick Add Modal instead of native Alert
-      setScannedBarcode(scannedBarcode);
-      setFname(""); setFsku(""); setFprice(""); setFcost(""); setFstock("");
-      setQuickAddErrors({});
-      setShowQuickAddModal(true);
+      // Redirect to inventory add section with scanned barcode
+      router.push(`/inventory?add=true&barcode=${scannedBarcode}`);
     }
   };
 

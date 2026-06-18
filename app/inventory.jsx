@@ -32,26 +32,38 @@ const fmt = (val) =>
 export default function StockScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { products, categories, units, addProduct, deleteProduct, adjustStock, fetchProducts, fetchUnits } =
+  const { products, categories, categoryObjects, units, brands, warehouses, suppliers, addProduct, deleteProduct, adjustStock, fetchProducts, fetchUnits, fetchBrands, fetchWarehouses, fetchSuppliers, fetchCategories } =
     useMockStore();
 
   useEffect(() => {
     fetchProducts();
     fetchUnits();
+    fetchBrands();
+    fetchWarehouses();
+    fetchSuppliers();
+    fetchCategories();
   }, []);
 
   const [search, setSearch] = useState("");
   const [selectedCat, setSelectedCat] = useState("All");
   const [onlyLowStock, setOnlyLowStock] = useState(params.lowStock === "true");
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(params.add === "true");
   const [detailProduct, setDetailProduct] = useState(null);
 
   // ── Add form state ─────────────────────────────────────────────────────────
   const [fname, setFname] = useState("");
   const [fsku, setFsku] = useState("");
-  const [fbarcode, setFbarcode] = useState("");
-  const [fcategory, setFcategory] = useState("");
+  const [fbarcode, setFbarcode] = useState(params.barcode || "");
+  const [fcategoryId, setFcategoryId] = useState(null);
+  const [fcategoryName, setFcategoryName] = useState("");
+  const [fbrandId, setFbrandId] = useState(null);
+  const [fbrandName, setFbrandName] = useState("");
+  const [fwarehouseId, setFwarehouseId] = useState(null);
+  const [fwarehouseName, setFwarehouseName] = useState("");
+  const [fsupplierId, setFsupplierId] = useState(null);
+  const [fsupplierName, setFsupplierName] = useState("");
   const [fprice, setFprice] = useState("");
+  const [selectionConfig, setSelectionConfig] = useState(null);
   const [fcost, setFcost] = useState("");
   const [fstock, setFstock] = useState("");
   const [fthreshold, setFthreshold] = useState("5");
@@ -91,7 +103,7 @@ export default function StockScreen() {
   ).length;
 
   // ── Handlers ───────────────────────────────────────────────────────────────
-  function handleSave() {
+  async function handleSave() {
     const errs = {};
     if (!fname.trim()) errs.name = "Name is required";
     if (!fprice || isNaN(+fprice)) errs.price = "Enter a valid price";
@@ -100,36 +112,66 @@ export default function StockScreen() {
       setErrors(errs);
       return;
     }
+    if (!fcategoryId) {
+      setErrors({ category: "Category is required." });
+      return;
+    }
 
-    addProduct({
-      name: fname,
-      sku: fsku,
-      barcode: fbarcode || null,
-      category: fcategory || "General",
-      price: Number(fprice),
-      cost: fcost ? Number(fcost) : undefined,
-      stock: 0,
-      low_stock_threshold: parseInt(fthreshold, 10) || 5,
-      unit_id: funitId || null,
-      secondary_unit_id: fsecUnitId || null,
-      conversion_rate: fconvRate ? Number(fconvRate) : null,
-      secondary_selling_price: fsecPrice ? Number(fsecPrice) : null,
-      secondary_purchase_price: fsecCost ? Number(fsecCost) : null,
-      image: null,
-    });
+    try {
+      await addProduct({
+        name: fname,
+        sku: fsku,
+        barcode: fbarcode || null,
+        category_id: fcategoryId,
+        brand_id: fbrandId || null,
+        warehouse_id: fwarehouseId || null,
+        supplier_id: fsupplierId || null,
+        price: Number(fprice),
+        cost: fcost ? Number(fcost) : undefined,
+        stock: 0,
+        low_stock_threshold: parseInt(fthreshold, 10) || 5,
+        unit_id: funitId || null,
+        secondary_unit_id: fsecUnitId || null,
+        conversion_rate: fconvRate ? Number(fconvRate) : null,
+        secondary_selling_price: fsecPrice ? Number(fsecPrice) : null,
+        secondary_purchase_price: fsecCost ? Number(fsecCost) : null,
+        image: null,
+      });
 
-    setFname(""); setFsku(""); setFbarcode(""); setFcategory("");
-    setFprice(""); setFcost(""); setFstock(""); setFthreshold("5");
-    setFunitId(null); setFunitName(""); setFsecUnitId(null); setFsecUnitName(""); setFconvRate(""); setFsecPrice(""); setFsecCost("");
-    setErrors({});
-    setShowAddForm(false);
-    Alert.alert("Product Added", `"${fname}" has been added to inventory.`);
+      setFname(""); setFsku(""); setFbarcode("");
+      setFcategoryId(null); setFcategoryName("");
+      setFbrandId(null); setFbrandName("");
+      setFwarehouseId(null); setFwarehouseName("");
+      setFsupplierId(null); setFsupplierName("");
+      setFprice(""); setFcost(""); setFstock(""); setFthreshold("5");
+      setFunitId(null); setFunitName(""); setFsecUnitId(null); setFsecUnitName(""); setFconvRate(""); setFsecPrice(""); setFsecCost("");
+      setErrors({});
+      setShowAddForm(false);
+      Alert.alert("Product Added", `"${fname}" has been added to inventory.`);
+    } catch (error) {
+      console.error("Add Product Error:", error);
+      let errMsg = error?.response?.data?.message || error.message || "Unknown error";
+      if (error?.response?.data?.errors) {
+        const firstError = Object.values(error.response.data.errors)[0];
+        if (firstError && firstError.length > 0) {
+          errMsg = firstError[0];
+        }
+      }
+      Alert.alert("Error", "Failed to add product: " + errMsg);
+    }
   }
 
   function handleDelete(id, name) {
     Alert.alert("Delete Product", `Remove "${name}" from inventory?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteProduct(id) },
+      { text: "Delete", style: "destructive", onPress: async () => {
+        try {
+          await deleteProduct(id);
+        } catch (error) {
+          let errMsg = error?.response?.data?.message || error.message || "Unknown error";
+          Alert.alert("Error", "Failed to delete product: " + errMsg);
+        }
+      } },
     ]);
   }
 
@@ -247,18 +289,58 @@ export default function StockScreen() {
                 </View>
               </View>
 
-              <View className="flex-row gap-3">
+              <View className="flex-row gap-3 mb-2">
                 <View className="flex-1">
                   <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
-                    Category
+                    Category *
                   </Text>
-                  <TextInput
-                    value={fcategory}
-                    onChangeText={setFcategory}
-                    placeholder="e.g. Grains"
-                    placeholderTextColor="#94a3b8"
-                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                  />
+                  <TouchableOpacity
+                    onPress={() => setSelectionConfig({ title: "Select Category", data: categoryObjects, onSelect: (val) => { setFcategoryId(val?.id); setFcategoryName(val?.name || ""); } })}
+                    className={`bg-white border-2 rounded-2xl px-4 py-3.5 flex-row justify-between items-center ${errors.category ? "border-rose-300" : "border-slate-200"}`}
+                  >
+                    <Text className={`text-sm font-bold ${fcategoryName ? 'text-slate-800' : 'text-slate-400'}`}>{fcategoryName || "Select Category"}</Text>
+                    <Ionicons name="caret-down" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                  {errors.category && <Text className="text-rose-500 text-[10px] mt-1 ml-1">{errors.category}</Text>}
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Brand
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectionConfig({ title: "Select Brand", data: brands, onSelect: (val) => { setFbrandId(val?.id); setFbrandName(val?.name || ""); } })}
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
+                  >
+                    <Text className={`text-sm font-bold ${fbrandName ? 'text-slate-800' : 'text-slate-400'}`}>{fbrandName || "Select Brand"}</Text>
+                    <Ionicons name="caret-down" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <View className="flex-row gap-3 mb-2">
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Warehouse
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectionConfig({ title: "Select Warehouse", data: warehouses, onSelect: (val) => { setFwarehouseId(val?.id); setFwarehouseName(val?.name || ""); } })}
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
+                  >
+                    <Text className={`text-sm font-bold ${fwarehouseName ? 'text-slate-800' : 'text-slate-400'}`}>{fwarehouseName || "Select Warehouse"}</Text>
+                    <Ionicons name="caret-down" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">
+                    Supplier
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => setSelectionConfig({ title: "Select Supplier", data: suppliers, onSelect: (val) => { setFsupplierId(val?.id); setFsupplierName(val?.name || ""); } })}
+                    className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 flex-row justify-between items-center"
+                  >
+                    <Text className={`text-sm font-bold ${fsupplierName ? 'text-slate-800' : 'text-slate-400'}`}>{fsupplierName || "Select Supplier"}</Text>
+                    <Ionicons name="caret-down" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
                 </View>
               </View>
 
@@ -597,6 +679,54 @@ export default function StockScreen() {
               ))}
             </ScrollView>
           </View>
+        </View>
+      </Modal>
+
+      {/* Generic Selection Modal */}
+      <Modal visible={!!selectionConfig} animationType="slide" transparent>
+        <View className="flex-1 bg-black/60 justify-end">
+          {selectionConfig && (
+            <View className="bg-white rounded-t-3xl p-5 shadow-2xl pb-10" style={{ maxHeight: '80%' }}>
+              <View className="flex-row justify-between items-center mb-4 border-b border-slate-100 pb-3">
+                <Text className="text-lg font-black text-slate-800 uppercase tracking-tight">{selectionConfig.title}</Text>
+                <TouchableOpacity onPress={() => setSelectionConfig(null)}>
+                  <Ionicons name="close-circle" size={28} color="#94a3b8" />
+                </TouchableOpacity>
+              </View>
+              
+              <ScrollView className="mb-4">
+                <TouchableOpacity
+                  onPress={() => {
+                    selectionConfig.onSelect(null);
+                    setSelectionConfig(null);
+                  }}
+                  className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+                >
+                  <Text className="text-sm font-bold text-slate-500">None</Text>
+                </TouchableOpacity>
+
+                {selectionConfig.data?.map((item) => (
+                  <TouchableOpacity
+                    key={item.id}
+                    onPress={() => {
+                      selectionConfig.onSelect(item);
+                      setSelectionConfig(null);
+                    }}
+                    className="py-4 border-b border-slate-100 flex-row justify-between items-center"
+                  >
+                    <Text className="text-sm font-bold text-slate-800">
+                      {item.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {(!selectionConfig.data || selectionConfig.data.length === 0) && (
+                  <View className="py-8 items-center">
+                    <Text className="text-slate-400 font-bold mb-2">No items found</Text>
+                  </View>
+                )}
+              </ScrollView>
+            </View>
+          )}
         </View>
       </Modal>
 

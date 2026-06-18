@@ -16,10 +16,12 @@ export default function SystemSettingsScreen() {
     printer_width: '80mm',
     sales_prefix: 'SL-',
     purchase_prefix: 'PR-',
-    sales_return_prefix: 'SR-',
     purchase_return_prefix: 'PRR-',
     receipt_header: '',
     receipt_footer: '',
+    store_name: '',
+    store_address: '',
+    gst_no: '',
   });
 
   async function loadSystemSettings() {
@@ -36,12 +38,14 @@ export default function SystemSettingsScreen() {
           purchase_return_prefix: res.data.purchase_return_prefix || 'PRR-',
           receipt_header: res.data.receipt_header || '',
           receipt_footer: res.data.receipt_footer || '',
+          store_name: res.data.store_name || '',
+          store_address: res.data.store_address || '',
+          gst_no: res.data.gst_no || '',
         });
       }
     } catch (e) {
       console.warn("Failed to load system settings", e.message);
     } finally {
-      setLoading(true); // Wait, should be false! Let's set it to false.
       setLoading(false);
     }
   }
@@ -189,6 +193,43 @@ export default function SystemSettingsScreen() {
                   className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
                 />
               </View>
+            </View>
+          </GlassCard>
+
+          <GlassCard className="p-4 gap-4 mb-6">
+            <Text className="text-slate-800 text-xs font-black uppercase tracking-wider mb-1">Store Identity (Receipts)</Text>
+
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Store Name</Text>
+              <TextInput
+                value={settingsForm.store_name}
+                onChangeText={(text) => setSettingsForm({ ...settingsForm, store_name: text })}
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                placeholder="Business Name for Print"
+              />
+            </View>
+
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Store Address</Text>
+              <TextInput
+                value={settingsForm.store_address}
+                onChangeText={(text) => setSettingsForm({ ...settingsForm, store_address: text })}
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 h-16"
+                placeholder="Store Address"
+                multiline
+                textAlignVertical="top"
+              />
+            </View>
+
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">GST Number</Text>
+              <TextInput
+                value={settingsForm.gst_no}
+                onChangeText={(text) => setSettingsForm({ ...settingsForm, gst_no: text })}
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                placeholder="GSTIN"
+                autoCapitalize="characters"
+              />
             </View>
           </GlassCard>
 

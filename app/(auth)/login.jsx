@@ -21,11 +21,13 @@ import { StatusBar } from "expo-status-bar";
 import { LinearGradient } from "expo-linear-gradient";
 import { useAuthStore } from "@/store/authStore";
 import { Ionicons } from "@expo/vector-icons";
+import { Link, useRouter } from "expo-router";
 
 const { width } = Dimensions.get("window");
 
 export default function LoginScreen() {
   const { login, isLoading } = useAuthStore();
+  const router = useRouter();
   const scrollViewRef = useRef(null);
 
   const [email, setEmail] = useState("");
@@ -242,9 +244,15 @@ export default function LoginScreen() {
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (err) {
+      // If unverified self-registered user, redirect to OTP screen
+      if (err?.response?.data?.unverified) {
+        const unverifiedEmail = err.response.data.email || email.trim().toLowerCase();
+        router.push({ pathname: "/(auth)/verify-otp", params: { email: unverifiedEmail } });
+        return;
+      }
       Alert.alert(
         "Login Failed",
-        err?.message ?? "Please check your credentials and try again."
+        err?.response?.data?.message ?? err?.message ?? "Please check your credentials and try again."
       );
     }
   }
@@ -455,6 +463,15 @@ export default function LoginScreen() {
                 ) : null}
               </View>
 
+              {/* Forgot Password Link */}
+              <View className="items-end mb-6">
+                <Link href="/forgot-password" asChild>
+                  <Pressable className="p-1 active:opacity-60">
+                    <Text className="text-orange-600 text-xs font-bold">Forgot Password?</Text>
+                  </Pressable>
+                </Link>
+              </View>
+
               {/* Premium Orange Linear Gradient Button with Scale Feedback */}
               <Pressable
                 onPress={handleLogin}
@@ -479,6 +496,19 @@ export default function LoginScreen() {
                   </LinearGradient>
                 </Animated.View>
               </Pressable>
+
+              <View className="mt-6 flex-row justify-center items-center">
+                <Text className="text-sm text-slate-500 font-medium">
+                  Don't have an account?{" "}
+                </Text>
+                <Link href="/register" asChild>
+                  <Pressable className="p-1 active:opacity-60">
+                    <Text className="text-sm text-orange-600 font-bold">
+                      Create one
+                    </Text>
+                  </Pressable>
+                </Link>
+              </View>
             </Animated.View>
           )}
         </Animated.View>
@@ -488,8 +518,16 @@ export default function LoginScreen() {
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <Animated.View
         style={{ opacity: footerFade }}
-        className="absolute bottom-6 left-0 right-0 items-center"
+        className="absolute bottom-6 left-0 right-0 items-center px-6"
       >
+        <Pressable
+          onPress={() => router.push("/(auth)/register")}
+          className="w-full mb-3 rounded-2xl border-2 border-orange-400 bg-orange-50 py-3.5 items-center justify-center flex-row"
+          style={{ gap: 8 }}
+        >
+          <Ionicons name="storefront-outline" size={18} color="#f97316" />
+          <Text className="text-orange-600 text-sm font-bold tracking-wide">Create a New Store</Text>
+        </Pressable>
         <Text className="text-slate-400 text-xs font-medium tracking-wide">
           Powered by{" "}
           <Text className="text-orange-600 font-bold">Fillosoft</Text>

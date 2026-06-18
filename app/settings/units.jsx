@@ -15,6 +15,7 @@ export default function UnitsScreen() {
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form, setForm] = useState({ name: '', short_name: '' });
+  const [editId, setEditId] = useState(null);
 
   async function loadData() {
     try {
@@ -38,14 +39,41 @@ export default function UnitsScreen() {
     }
     try {
       setIsSaving(true);
-      await apiClient.post('/units', form);
+      if (editId) {
+        await apiClient.put(`/units/${editId}`, form);
+      } else {
+        await apiClient.post('/units', form);
+      }
       setIsModalOpen(false);
       setForm({ name: '', short_name: '' });
+      setEditId(null);
       loadData();
     } catch (e) {
       Alert.alert("Error", e.response?.data?.message || e.message);
     } finally {
       setIsSaving(false);
+    }
+  }
+
+  function handleEdit(item) {
+    setForm({ name: item.name, short_name: item.short_name || item.name });
+    setEditId(item.id);
+    setIsModalOpen(true);
+  }
+
+  function handleDeleteConfirm(id) {
+    Alert.alert("Confirm Delete", "Are you sure you want to delete this unit?", [
+      { text: "Cancel", style: "cancel" },
+      { text: "Delete", style: "destructive", onPress: () => handleDelete(id) }
+    ]);
+  }
+
+  async function handleDelete(id) {
+    try {
+      await apiClient.delete(`/units/${id}`);
+      loadData();
+    } catch (e) {
+      Alert.alert("Error", e.response?.data?.message || e.message);
     }
   }
 
@@ -72,7 +100,7 @@ export default function UnitsScreen() {
           <Text style={{ color: '#fff', fontSize: 15, fontWeight: '900', letterSpacing: 1, textTransform: 'uppercase' }}>Units</Text>
           <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 9, fontWeight: '700', letterSpacing: 0.5, marginTop: 1 }}>Manage measurement units</Text>
         </View>
-        <TouchableOpacity onPress={() => setIsModalOpen(true)} activeOpacity={0.7} style={{ alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)', width: 36, height: 36, borderRadius: 18 }}>
+        <TouchableOpacity onPress={() => { setEditId(null); setForm({ name: '', short_name: '' }); setIsModalOpen(true); }} activeOpacity={0.7} style={{ alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.2)', width: 36, height: 36, borderRadius: 18 }}>
           <Ionicons name="add" size={20} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -90,7 +118,14 @@ export default function UnitsScreen() {
                 <Text className="text-slate-800 text-sm font-black uppercase tracking-wider">{item.name}</Text>
                 <Text className="text-slate-500 text-[10px] font-bold mt-0.5">Short Name: {item.short_name}</Text>
               </View>
-              <Ionicons name="scale-outline" size={20} color="#cbd5e1" />
+              <View className="flex-row items-center gap-3">
+                <TouchableOpacity onPress={() => handleEdit(item)} className="p-2 bg-blue-50 rounded-full">
+                  <Ionicons name="pencil" size={16} color="#3b82f6" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDeleteConfirm(item.id)} className="p-2 bg-rose-50 rounded-full">
+                  <Ionicons name="trash" size={16} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
             </GlassCard>
           )}
           ListEmptyComponent={<Text className="text-center text-slate-400 font-bold mt-10">No units found. Click + to add one.</Text>}
@@ -100,7 +135,7 @@ export default function UnitsScreen() {
       {isModalOpen && (
         <View style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 }}>
           <View className="bg-white rounded-3xl p-6 shadow-2xl">
-            <Text className="text-lg font-black text-slate-800 uppercase mb-4">Add Unit</Text>
+            <Text className="text-lg font-black text-slate-800 uppercase mb-4">{editId ? "Edit Unit" : "Add Unit"}</Text>
             
             <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1">Unit Name *</Text>
             <TextInput

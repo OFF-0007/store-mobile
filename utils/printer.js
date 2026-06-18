@@ -4,6 +4,7 @@
  * Pure JavaScript Implementation – 100% binary safe and does not rely on Node Buffer polyfills.
  */
 import { Alert, Linking, Platform } from "react-native";
+import apiClient from "@/lib/api/client";
 
 // Helper: Convert string to UTF-8 byte array (Uint8Array)
 function stringToUtf8(str) {
@@ -101,7 +102,7 @@ const ESC = {
 /**
  * Format receipt text for 48mm printer (approx 24 characters per line to avoid wrapping)
  */
-export function formatReceipt48mm(sale) {
+export function formatReceipt48mm(sale, settings = {}) {
   const parts = [];
 
   const addText = (str) => {
@@ -123,16 +124,31 @@ export function formatReceipt48mm(sale) {
   // --- HEADER SECTION ---
   addRaw(ESC.FONT_SIZE_LARGE);
   addRaw(ESC.ALIGN_CENTER);
-  // Use store name if provided, else default
-  addText(`${(sale.store_name || "STOREMAN POS").toUpperCase()}\n`);
+  
+  // 1. Store Name
+  const storeName = settings.store_name || sale.store?.name || sale.store_name || "STOREMAN POS";
+  addText(`${storeName.toUpperCase()}\n`);
+  
   addRaw(ESC.FONT_SIZE_NORMAL);
   addRaw(ESC.ALIGN_CENTER); // Re-align center for the rest of the header
+  
+  // 2. Store Address
+  const address = settings.store_address || sale.store?.address;
+  if (address) {
+    addText(`${address}\n`);
+  }
+
+  // 3. GST Number
+  const gstNo = settings.gst_no || sale.store?.gst_no;
+  if (gstNo) {
+    addText(`GSTIN: ${gstNo}\n`);
+  }
 
   // Date & Time
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-IN", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
   const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  addText(`${dateStr}  ${timeStr}\n\n`);
+  addText(`\n${dateStr}  ${timeStr}\n\n`);
 
   // --- TOKEN / REFERENCE SECTION ---
   addText("      - - - Token - - -       \n");
@@ -248,7 +264,15 @@ export function formatReceipt48mm(sale) {
  */
 export async function printViaRawBT(sale) {
   try {
-    const escBuffer = formatReceipt48mm(sale);
+    let settings = {};
+    try {
+      const res = await apiClient.get('/settings');
+      if (res.data) settings = res.data;
+    } catch (e) {
+      console.warn("Could not fetch latest settings for print", e.message);
+    }
+
+    const escBuffer = formatReceipt48mm(sale, settings);
     const base64Data = uint8ToBase64(escBuffer);
     const rawBtUri = `rawbt:base64,${base64Data}`;
 

@@ -30,7 +30,9 @@ export const useMockStore = create((set, get) => ({
   customers: [],
   units: [],
   categories: [],
+  categoryObjects: [],
   warehouses: [],
+  brands: [],
   isLoading: false,
   metrics: DEFAULT_METRICS,
 
@@ -64,6 +66,24 @@ export const useMockStore = create((set, get) => ({
       set({ suppliers: response.data || [] });
     } catch (error) {
       console.error('Failed to fetch suppliers:', error);
+    }
+  },
+
+  fetchBrands: async () => {
+    try {
+      const response = await apiClient.get('/brands');
+      set({ brands: response.data || [] });
+    } catch (error) {
+      console.error('Failed to fetch brands:', error);
+    }
+  },
+
+  fetchCategories: async () => {
+    try {
+      const response = await apiClient.get('/categories');
+      set({ categoryObjects: response.data?.data || response.data || [] });
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
     }
   },
 

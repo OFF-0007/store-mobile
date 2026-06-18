@@ -13,6 +13,57 @@ export const useAuthStore = create((set) => ({
   isLoading: true, // start in loading state to restore session cleanly
   isAuthenticated: false,
 
+  // ── Forgot Password ────────────────────────────────────────────────────────
+  forgotPassword: async (email) => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.post("/forgot-password", { email });
+      set({ isLoading: false });
+      return response.data;
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  // ── Register ──────────────────────────────────────────────────────────────
+  register: async (store_name, email, password, phone) => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.post("/register", { store_name, email, password, phone });
+      set({ isLoading: false });
+      // Registration no longer returns a token — user must verify OTP first
+      return response.data; // { otp_sent: true, email }
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+  // ── Verify OTP ────────────────────────────────────────────────────────────
+  verifyOtp: async (email, otp) => {
+    set({ isLoading: true });
+    try {
+      const response = await apiClient.post("/verify-otp", { email, otp });
+      const { token, user } = response.data;
+
+      await SecureStore.setItemAsync(TOKEN_KEY, token);
+      await SecureStore.setItemAsync(USER_SESSION_KEY, JSON.stringify(user));
+
+      apiClient.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      if (user?.store_id) {
+        apiClient.defaults.headers.common["X-Store-Id"] = user.store_id;
+      }
+
+      set({ user, token, isAuthenticated: true, isLoading: false });
+      return response.data;
+    } catch (err) {
+      set({ isLoading: false });
+      throw err;
+    }
+  },
+
+
   // ── Login ──────────────────────────────────────────────────────────────────
   login: async (email, password) => {
     set({ isLoading: true });

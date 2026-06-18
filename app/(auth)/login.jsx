@@ -221,6 +221,8 @@ export default function LoginScreen() {
   const handlePressOut = () => {
     Animated.spring(buttonScale, {
       toValue: 1,
+
+
       friction: 4,
       tension: 40,
       useNativeDriver: true,

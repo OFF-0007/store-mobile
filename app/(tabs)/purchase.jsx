@@ -36,6 +36,8 @@ try {
 }
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, Redirect } from "expo-router";
+import * as Print from "expo-print";
+import * as Sharing from "expo-sharing";
 const fmt = (val) =>
   `₹${Number(val || 0).toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -576,6 +578,193 @@ export default function PurchaseScreen() {
         type: 'purchase',
         date: new Date().toLocaleString(),
       });
+    }
+  };
+
+  // ── A4 Purchase Invoice PDF Generator ─────────────────────────────────
+  const handleDownloadA4Invoice = async (purchase) => {
+    if (!purchase) return;
+
+    const sName = purchase.store_name || "StoreManage";
+    // reference comes from new-purchase payload; formatted_id comes from API lookup
+    const ref = purchase.reference || purchase.formatted_id || purchase.id || "N/A";
+    const purchaseDate = purchase.purchase_date || new Date().toISOString().split("T")[0];
+    // supplier_display_name = new purchase; supplier?.name = API lookup
+    const supplier = purchase.supplier_display_name || purchase.supplier?.name || "Unknown Supplier";
+    const payMethod = purchase.payment_method || "Cash";
+    const refNo = purchase.ref_no || "";
+
+    const grandTotalVal = Number(purchase.grand_total || 0);
+    const paidAmountVal = Number(purchase.paid_amount || 0);
+
+    // Derive subtotal + tax from items when top-level fields are absent (API lookup case)
+    let subtotalVal = Number(purchase.subtotal || 0);
+    let taxAmountVal = Number(purchase.tax_amount || 0);
+    let discountVal = Number(purchase.discount || 0);
+
+    const normalizedItems = (purchase.items || []).map((item, idx) => {
+      const prod = products.find((p) => p.id === item.product_id);
+      // item.name = new-purchase payload; item.product_name = API lookup; fallback to products list
+      const name = item.name || item.product_name || prod?.name || `Item ${idx + 1}`;
+      const qty = Number(item.quantity || 0);
+      // item.cost = new-purchase payload; item.unit_price = API lookup
+      const cost = Number(item.cost ?? item.unit_price ?? 0);
+      const taxRate = Number(item.tax_rate || 0);
+      const discount = Number(item.discount || 0);
+      // item.subtotal = present in both; recalculate if missing
+      const itemSubtotal = Number(item.subtotal || ((cost * qty - discount) * (1 + taxRate / 100)));
+      const itemTax = Number(item.tax || ((cost * qty - discount) * taxRate / 100));
+
+      return { name, qty, cost, taxRate, discount, subtotal: itemSubtotal, tax: itemTax };
+    });
+
+    // If subtotal is 0 (API lookup case), derive it from items
+    if (subtotalVal === 0 && normalizedItems.length > 0) {
+      subtotalVal = normalizedItems.reduce((sum, i) => sum + (i.cost * i.qty - i.discount), 0);
+      taxAmountVal = normalizedItems.reduce((sum, i) => sum + i.tax, 0);
+      discountVal = normalizedItems.reduce((sum, i) => sum + i.discount, 0);
+    }
+
+    const paidStatus = (() => {
+      if (purchase.payment_status) return purchase.payment_status;
+      if (paidAmountVal === 0) return "Unpaid";
+      if (paidAmountVal < grandTotalVal) return "Partial";
+      return "Paid";
+    })();
+
+    const cgst = taxAmountVal / 2;
+    const sgst = taxAmountVal / 2;
+
+    const itemRows = normalizedItems.map((item, idx) => {
+      const taxLabel = item.taxRate > 0 ? `CGST ${item.taxRate / 2}% + SGST ${item.taxRate / 2}%` : "—";
+      return `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${item.name}</td>
+          <td style="text-align:center">${item.qty}</td>
+          <td style="text-align:right">₹${item.cost.toFixed(2)}</td>
+          <td style="text-align:center">${item.discount > 0 ? `₹${item.discount.toFixed(2)}` : "—"}</td>
+          <td style="text-align:center;font-size:10px">${taxLabel}</td>
+          <td style="text-align:right;color:#f97316;font-weight:700">₹${item.subtotal.toFixed(2)}</td>
+        </tr>`;
+    }).join("");
+
+    const balanceDue = Math.max(0, grandTotalVal - paidAmountVal);
+
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Purchase Order ${ref}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1e293b; font-size: 13px; padding: 32px; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; border-bottom: 3px solid #f97316; padding-bottom: 24px; }
+    .brand-name { font-size: 28px; font-weight: 900; color: #f97316; letter-spacing: -1px; }
+    .brand-sub { font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px; }
+    .po-badge { background: #1e293b; color: #fff; padding: 8px 20px; border-radius: 8px; text-align: right; }
+    .po-badge .label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; opacity: 0.7; }
+    .po-badge .ref { font-size: 18px; font-weight: 900; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+    .meta-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px 18px; }
+    .meta-box .title { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin-bottom: 6px; }
+    .meta-box .value { font-size: 14px; font-weight: 700; color: #1e293b; }
+    .meta-box .sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+    thead th { background: #1e293b; color: #fff; padding: 10px 12px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    thead th:first-child { border-radius: 8px 0 0 0; }
+    thead th:last-child { border-radius: 0 8px 0 0; }
+    tbody tr:nth-child(even) { background: #f8fafc; }
+    tbody td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 12px; vertical-align: middle; }
+    .totals-section { display: flex; justify-content: flex-end; }
+    .totals-box { width: 320px; }
+    .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; color: #475569; border-bottom: 1px solid #f1f5f9; }
+    .totals-row span:last-child { font-weight: 700; }
+    .tax-row { display: flex; justify-content: space-between; padding: 4px 0 4px 16px; font-size: 11px; color: #64748b; }
+    .grand-total-row { display: flex; justify-content: space-between; padding: 12px 0 8px; font-size: 16px; font-weight: 900; color: #f97316; border-top: 2px solid #f97316; margin-top: 4px; }
+    .paid-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; color: #16a34a; font-weight: 700; }
+    .balance-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 12px; color: #ef4444; font-weight: 700; }
+    .status-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+    .badge-paid { background: #dcfce7; color: #16a34a; }
+    .badge-partial { background: #fef3c7; color: #d97706; }
+    .badge-unpaid { background: #fee2e2; color: #dc2626; }
+    .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 11px; color: #94a3b8; }
+    .footer strong { color: #f97316; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="brand-name">${sName}</div>
+      <div class="brand-sub">Purchase Order / GRN</div>
+    </div>
+    <div class="po-badge">
+      <div class="label">Purchase Ref</div>
+      <div class="ref">${ref}</div>
+    </div>
+  </div>
+
+  <div class="meta-grid">
+    <div class="meta-box">
+      <div class="title">Supplier</div>
+      <div class="value">${supplier}</div>
+      ${refNo ? `<div class="sub">Ref No: ${refNo}</div>` : ""}
+    </div>
+    <div class="meta-box">
+      <div class="title">Purchase Details</div>
+      <div class="value">${purchaseDate}</div>
+      <div class="sub">Payment: ${payMethod} &nbsp;|&nbsp; <span class="status-badge badge-${paidStatus.toLowerCase()}">${paidStatus}</span></div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Item Description</th>
+        <th style="text-align:center">Qty</th>
+        <th style="text-align:right">Cost</th>
+        <th style="text-align:center">Discount</th>
+        <th style="text-align:center">Tax</th>
+        <th style="text-align:right">Amount</th>
+      </tr>
+    </thead>
+    <tbody>${itemRows}</tbody>
+  </table>
+
+  <div class="totals-section">
+    <div class="totals-box">
+      <div class="totals-row"><span>Taxable Subtotal</span><span>₹${subtotalVal.toFixed(2)}</span></div>
+      <div class="tax-row"><span>CGST:</span><span>₹${cgst.toFixed(2)}</span></div>
+      <div class="tax-row"><span>SGST:</span><span>₹${sgst.toFixed(2)}</span></div>
+      ${discountVal > 0 ? `<div class="totals-row" style="color:#ef4444"><span>Discount</span><span>-₹${discountVal.toFixed(2)}</span></div>` : ""}
+      <div class="grand-total-row"><span>GRAND TOTAL</span><span>₹${grandTotalVal.toFixed(2)}</span></div>
+      <div class="paid-row"><span>Amount Paid</span><span>₹${paidAmountVal.toFixed(2)}</span></div>
+      ${balanceDue > 0 ? `<div class="balance-row"><span>Balance Due</span><span>₹${balanceDue.toFixed(2)}</span></div>` : ""}
+    </div>
+  </div>
+
+  <div class="footer">
+    Thank you for your business! &mdash; Powered by <strong>StoreManage by Fillosoft</strong>
+  </div>
+</body>
+</html>`;
+
+    try {
+      const { uri } = await Print.printToFileAsync({ html, base64: false });
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(uri, {
+          mimeType: "application/pdf",
+          dialogTitle: `Purchase Order ${ref}`,
+          UTI: "com.adobe.pdf",
+        });
+      } else {
+        Alert.alert("Saved", `Purchase order saved to: ${uri}`);
+      }
+    } catch (err) {
+      Alert.alert("Error", "Failed to generate PDF. " + (err?.message || ""));
     }
   };
 
@@ -1333,6 +1522,16 @@ export default function PurchaseScreen() {
               >
                 <Text className="text-white text-center text-xs font-black uppercase tracking-wider">
                   🖨️ Print Receipt
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => handleDownloadA4Invoice(completedPurchase)}
+                activeOpacity={0.8}
+                style={{ backgroundColor: "#1e293b", borderRadius: 16, paddingVertical: 14, alignItems: "center", flexDirection: "row", justifyContent: "center" }}
+              >
+                <Ionicons name="document-text-outline" size={15} color="#fff" style={{ marginRight: 6 }} />
+                <Text style={{ color: "#fff", fontSize: 11, fontWeight: "900", textTransform: "uppercase", letterSpacing: 1 }}>
+                  Download A4 Invoice
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity

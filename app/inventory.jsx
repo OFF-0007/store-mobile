@@ -67,7 +67,7 @@ export default function StockScreen() {
   const [fcost, setFcost] = useState("");
   const [fstock, setFstock] = useState("");
   const [fthreshold, setFthreshold] = useState("5");
-  
+
   // Unit States
   const [funitId, setFunitId] = useState(null);
   const [funitName, setFunitName] = useState("");
@@ -77,7 +77,7 @@ export default function StockScreen() {
   const [fsecUnitId, setFsecUnitId] = useState(null);
   const [fsecUnitName, setFsecUnitName] = useState("");
   const [fconvRate, setFconvRate] = useState("");
-  
+
   const [showUnitModal, setShowUnitModal] = useState(false);
   const [fsecPrice, setFsecPrice] = useState("");
   const [fsecCost, setFsecCost] = useState("");
@@ -164,14 +164,16 @@ export default function StockScreen() {
   function handleDelete(id, name) {
     Alert.alert("Delete Product", `Remove "${name}" from inventory?`, [
       { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: async () => {
-        try {
-          await deleteProduct(id);
-        } catch (error) {
-          let errMsg = error?.response?.data?.message || error.message || "Unknown error";
-          Alert.alert("Error", "Failed to delete product: " + errMsg);
+      {
+        text: "Delete", style: "destructive", onPress: async () => {
+          try {
+            await deleteProduct(id);
+          } catch (error) {
+            let errMsg = error?.response?.data?.message || error.message || "Unknown error";
+            Alert.alert("Error", "Failed to delete product: " + errMsg);
+          }
         }
-      } },
+      },
     ]);
   }
 
@@ -409,7 +411,7 @@ export default function StockScreen() {
                 <Text className="text-[10px] font-black text-orange-600 uppercase tracking-widest mb-3 ml-1">
                   Wholesale / Secondary Unit (Optional)
                 </Text>
-                
+
                 <View className="flex-row gap-3 mb-3">
                   <View className="flex-1">
                     <Text className="text-[9px] font-black text-slate-500 uppercase mb-1 ml-1">Unit Name</Text>
@@ -647,7 +649,7 @@ export default function StockScreen() {
                 <Ionicons name="close-circle" size={28} color="#94a3b8" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView className="mb-4">
               <TouchableOpacity
                 onPress={() => {
@@ -693,7 +695,7 @@ export default function StockScreen() {
                   <Ionicons name="close-circle" size={28} color="#94a3b8" />
                 </TouchableOpacity>
               </View>
-              
+
               <ScrollView className="mb-4">
                 <TouchableOpacity
                   onPress={() => {
@@ -740,7 +742,7 @@ export default function StockScreen() {
                 <Ionicons name="close-circle" size={28} color="#94a3b8" />
               </TouchableOpacity>
             </View>
-            
+
             <ScrollView className="mb-4">
               <TouchableOpacity
                 onPress={() => {

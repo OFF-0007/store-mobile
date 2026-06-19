@@ -23,6 +23,10 @@ export default function AddCustomerScreen() {
       Alert.alert("Validation Error", "Customer Name is required");
       return;
     }
+    if (form.phone && form.phone.trim().length !== 10) {
+      Alert.alert("Validation Error", "Phone number must be exactly 10 digits.");
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -100,8 +104,9 @@ export default function AddCustomerScreen() {
               value={form.phone}
               onChangeText={(text) => setForm({ ...form, phone: text })}
               keyboardType="phone-pad"
+              maxLength={10}
               className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-              placeholder="Enter phone number"
+              placeholder="10-digit mobile number"
             />
           </View>
 

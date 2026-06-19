@@ -159,7 +159,7 @@ export default function RegisterScreen() {
     if (!email.trim()) next.email = "Email is required.";
     else if (!/\S+@\S+\.\S+/.test(email)) next.email = "Enter a valid email.";
     if (!phone.trim()) next.phone = "Phone number is required.";
-    else if (!/^[0-9]{10,15}$/.test(phone.replace(/[\s\-+]/g, ""))) next.phone = "Enter a valid phone number.";
+    else if (!/^[0-9]{10}$/.test(phone.replace(/[\s\-+]/g, ""))) next.phone = "Enter exactly 10 digits.";
     if (!password) next.password = "Password is required.";
     else if (password.length < 6) next.password = "Minimum 6 characters.";
     setErrors(next);
@@ -248,7 +248,7 @@ export default function RegisterScreen() {
                 <Text className="mb-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Phone Number (OTP will be sent)</Text>
                 <Animated.View style={{ borderColor: errors.phone ? "#ef4444" : phoneBorderColor }} className="flex-row items-center rounded-2xl border px-4 h-14 bg-white">
                   <View className="mr-3"><Ionicons name="call-outline" size={20} color={errors.phone ? "#ef4444" : "#64748b"} /></View>
-                  <TextInput className="flex-1 text-slate-800 text-sm font-semibold h-full pt-0 pb-0" value={phone} onChangeText={(val) => { setPhone(val); if (errors.phone) setErrors((prev) => ({ ...prev, phone: null })); }} onFocus={handlePhoneFocus} onBlur={handlePhoneBlur} keyboardType="phone-pad" placeholder="10-digit mobile number" placeholderTextColor="#cbd5e1" maxLength={15} />
+                  <TextInput className="flex-1 text-slate-800 text-sm font-semibold h-full pt-0 pb-0" value={phone} onChangeText={(val) => { setPhone(val); if (errors.phone) setErrors((prev) => ({ ...prev, phone: null })); }} onFocus={handlePhoneFocus} onBlur={handlePhoneBlur} keyboardType="phone-pad" placeholder="10-digit mobile number" placeholderTextColor="#cbd5e1" maxLength={10} />
                 </Animated.View>
                 {errors.phone ? <Text className="mt-1 ml-1 text-xs font-semibold text-rose-500">{errors.phone}</Text> : null}
               </View>

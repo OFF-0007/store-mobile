@@ -422,6 +422,10 @@ export default function POSScreen() {
         );
         return;
       }
+      if (!selectedCustomerId && customerPhone.trim() && customerPhone.trim().length !== 10) {
+        Alert.alert("Validation Error", "Customer phone number must be exactly 10 digits.");
+        return;
+      }
     }
 
     // Check stock levels and valid quantities
@@ -1079,7 +1083,8 @@ export default function POSScreen() {
                         onChangeText={setCustomerPhone}
                         placeholder="Enter Phone Number..."
                         placeholderTextColor="#94a3b8"
-                        keyboardType="numeric"
+                        keyboardType="phone-pad"
+                        maxLength={10}
                         disabled={!!selectedCustomerId}
                         className={`bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400 ${selectedCustomerId ? "opacity-60 bg-slate-100" : ""
                           }`}

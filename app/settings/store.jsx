@@ -54,6 +54,10 @@ export default function StoreProfileScreen() {
       Alert.alert("Validation Error", "Store Name is required");
       return;
     }
+    if (storeForm.mobile && storeForm.mobile.trim().length !== 10) {
+      Alert.alert("Validation Error", "Mobile number must be exactly 10 digits.");
+      return;
+    }
 
     try {
       setIsSaving(true);
@@ -176,8 +180,9 @@ export default function StoreProfileScreen() {
                 value={storeForm.mobile}
                 onChangeText={(text) => setStoreForm({ ...storeForm, mobile: text })}
                 keyboardType="phone-pad"
+                maxLength={10}
                 className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                placeholder="Enter mobile number"
+                placeholder="10-digit mobile number"
               />
             </View>
 

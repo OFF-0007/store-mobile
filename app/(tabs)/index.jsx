@@ -132,15 +132,7 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        <TouchableOpacity
-          className="w-10 h-10 bg-white/10 rounded-full items-center justify-center relative"
-          onPress={() => router.push("/inventory")}
-        >
-          <Feather name="bell" size={20} color="#ffffff" />
-          {metrics.lowStockCount > 0 && (
-            <View className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border border-orange-500" />
-          )}
-        </TouchableOpacity>
+
       </View>
 
       <ScrollView

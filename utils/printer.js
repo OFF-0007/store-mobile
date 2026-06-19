@@ -138,7 +138,13 @@ export function formatReceipt48mm(sale, settings = {}) {
     addText(`${address}\n`);
   }
 
-  // 3. GST Number
+  // 3. Phone Number
+  const phoneNo = settings.store_mobile || settings.phone || sale.store?.mobile;
+  if (phoneNo) {
+    addText(`Ph: ${phoneNo}\n`);
+  }
+
+  // 4. GST Number
   const gstNo = settings.gst_no || sale.store?.gst_no;
   if (gstNo) {
     addText(`GSTIN: ${gstNo}\n`);
@@ -150,12 +156,12 @@ export function formatReceipt48mm(sale, settings = {}) {
   const timeStr = now.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
   addText(`\n${dateStr}  ${timeStr}\n\n`);
 
-  // --- TOKEN / REFERENCE SECTION ---
-  addText("      - - - Token - - -       \n");
-  addText(". . . . . . . . . . . . . . . \n");
+  // --- REFERENCE SECTION ---
+  addRaw(ESC.ALIGN_CENTER);
+  addText("------------------------\n");
   const refText = String(sale.reference || sale.id || "N/A");
-  addText(`${refText}\n`);
-  addText(". . . . . . . . . . . . . . . \n\n");
+  addText(`Ref: ${refText}\n`);
+  addText("------------------------\n\n");
 
   // --- DETAILS SECTION ---
   addRaw(ESC.ALIGN_LEFT);
@@ -168,7 +174,6 @@ export function formatReceipt48mm(sale, settings = {}) {
   };
 
   const isPurchase = sale.type === "purchase";
-  addText(printRow("Token Type", isPurchase ? "Purchase" : "Sales"));
   addText("------------------------\n");
 
   const entityLabel = isPurchase ? "Supplier Name" : "Customer Name";

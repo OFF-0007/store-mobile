@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator } from "react-native";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import apiClient from "@/lib/api/client";
@@ -69,6 +69,10 @@ export default function SystemSettingsScreen() {
   }
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
     <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
       {/* Header */}
       <View style={{
@@ -278,5 +282,6 @@ export default function SystemSettingsScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }

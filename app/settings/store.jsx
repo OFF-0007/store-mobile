@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Image } from "react-native";
+import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View, ActivityIndicator, Image, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import apiClient from "@/lib/api/client";
@@ -28,7 +28,7 @@ export default function StoreProfileScreen() {
         name: res.data.name || '',
         mobile: res.data.mobile || '',
         address: res.data.address || '',
-        gst_number: res.data.gst_number || '',
+        gst_number: res.data.gst_no || res.data.gst_number || '',
         logo: null
       });
       if (res.data.logo) {
@@ -88,6 +88,11 @@ export default function StoreProfileScreen() {
   }
 
   return (
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+    >
     <SafeAreaView className="flex-1 bg-slate-50" edges={[]}>
       {/* Header */}
       <View style={{
@@ -136,7 +141,11 @@ export default function StoreProfileScreen() {
           <ActivityIndicator size="large" color="#f97316" />
         </View>
       ) : (
-        <ScrollView className="flex-1 p-4" keyboardShouldPersistTaps="handled">
+        <ScrollView
+          className="flex-1 p-4"
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
           <GlassCard className="p-4 gap-4">
             <View className="items-center mb-2">
               <TouchableOpacity onPress={pickImage} className="w-24 h-24 bg-slate-100 rounded-full items-center justify-center border-2 border-dashed border-slate-300 overflow-hidden">
@@ -213,5 +222,6 @@ export default function StoreProfileScreen() {
         </ScrollView>
       )}
     </SafeAreaView>
+    </KeyboardAvoidingView>
   );
 }

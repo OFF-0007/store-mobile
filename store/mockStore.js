@@ -43,6 +43,7 @@ export const useMockStore = create((set, get) => ({
       set({
         products: response.data.products || [],
         categories: response.data.categories || [],
+        units: response.data.units || [],
         isLoading: false
       });
     } catch (error) {
@@ -88,12 +89,7 @@ export const useMockStore = create((set, get) => ({
   },
 
   fetchUnits: async () => {
-    try {
-      const response = await apiClient.get('/products');
-      set({ units: response.data.units || [] });
-    } catch (error) {
-      console.error('Failed to fetch units:', error);
-    }
+    // Units are now fetched and set by fetchProducts to avoid redundant API calls and caching bugs.
   },
 
   fetchWarehouses: async () => {

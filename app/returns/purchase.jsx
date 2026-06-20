@@ -144,6 +144,9 @@ export default function PurchaseReturnScreen() {
         const taxPerUnit = taxablePerUnit * (taxRate / 100);
         const unitPriceWithTax = taxablePerUnit + taxPerUnit;
 
+        const isSecondary = item.unit_id && item.unit_id == item.secondary_unit_id;
+        const convRate = parseFloat(item.conversion_rate || 1);
+
         return {
           product_id: item.product_id,
           product_name: item.product_name,
@@ -153,9 +156,13 @@ export default function PurchaseReturnScreen() {
           tax_rate: taxRate.toString(),
           discount_per_unit: discountPerUnit.toString(),
           unit: item.unit || '',
+          unit_id: item.unit_id,
+          secondary_unit_id: item.secondary_unit_id,
+          conversion_rate: item.conversion_rate,
           max_quantity: remainingQty,
           original_purchased: item.quantity,
           already_returned: item.returned_qty,
+          base_quantity: isSecondary ? remainingQty * convRate : remainingQty,
         };
       }) : [];
       
@@ -236,6 +243,11 @@ export default function PurchaseReturnScreen() {
 
     const updated = [...returnItems];
     updated[index].quantity = cleaned;
+    
+    const isSecondary = updated[index].unit_id && updated[index].unit_id == updated[index].secondary_unit_id;
+    const convRate = parseFloat(updated[index].conversion_rate || 1);
+    updated[index].base_quantity = (isSecondary ? qty * convRate : qty).toString();
+    
     setReturnItems(updated);
   };
 
@@ -289,7 +301,8 @@ export default function PurchaseReturnScreen() {
           tax: tax,
           discount: discount,
           subtotal: subtotal,
-          unit: item.unit || null,
+          unit: typeof item.unit === 'object' ? (item.unit?.name || '') : (item.unit || ''),
+          base_quantity: item.base_quantity != null ? Number(item.base_quantity) : qty,
         };
       });
 
@@ -412,12 +425,15 @@ export default function PurchaseReturnScreen() {
                     <View className="flex-1"><Text className="text-slate-800 text-xs font-black uppercase">{item.product_name}</Text><Text className="text-slate-400 text-[10px] font-bold mt-0.5">Purchased: {item.original_purchased} · Returned: {item.already_returned}</Text></View>
                     <View className="bg-orange-50 px-2 py-1 rounded-lg"><Text className="text-orange-600 text-[10px] font-black">{item.max_quantity} LEFT</Text></View>
                   </View>
-                  <View className="flex-row gap-4 mt-3 items-end">
-                    <View className="flex-1"><Text className="text-[10px] font-black text-slate-500 uppercase mb-1.5">Return Qty</Text>
+                  <View className="flex-row gap-2 mt-3 items-end">
+                    <View className="flex-[1.2]"><Text className="text-[10px] font-black text-slate-500 uppercase mb-1.5">Return Qty</Text>
                       <TextInput value={item.quantity} onChangeText={(text) => updateReturnItem(index, text)} keyboardType="numeric" placeholder="0" className="bg-white border-2 border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-xs font-bold" />
                     </View>
-                    <View className="flex-1"><Text className="text-[10px] font-black text-slate-500 uppercase mb-1.5">Unit Cost</Text>
+                    <View className="flex-[1.5]"><Text className="text-[10px] font-black text-slate-500 uppercase mb-1.5">Unit Cost</Text>
                       <View className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5"><Text className="text-slate-500 text-xs font-bold">{fmt(item.unit_price)}</Text></View>
+                    </View>
+                    <View className="flex-1"><Text className="text-[10px] font-black text-slate-500 uppercase mb-1.5">Unit</Text>
+                      <View className="bg-slate-100 border border-slate-200 rounded-xl px-3 py-2.5"><Text className="text-slate-500 text-[10px] font-bold">{typeof item.unit === 'object' ? item.unit?.name || '-' : item.unit || '-'}</Text></View>
                     </View>
                   </View>
                 </View>

@@ -84,7 +84,7 @@ export default function PurchaseReturnScreen() {
     try {
       const res = await apiClient.get(`/purchases/${purchaseId}`);
       const purchase = res.data;
-      
+
       setLinkedPurchaseDetails(purchase);
       setSelectedSupplier(purchase.supplier?.id);
       setSelectedWarehouse(purchase.warehouse?.id);
@@ -92,17 +92,24 @@ export default function PurchaseReturnScreen() {
       // Set return items from purchase items
       const items = purchase.items ? purchase.items.map(item => {
         const remainingQty = (item.quantity || 0) - (item.returned_qty || 0);
+        const isSecondary = item.unit_id && item.unit_id == item.secondary_unit_id;
+        const convRate = parseFloat(item.conversion_rate || 1);
+        const baseQty = isSecondary ? remainingQty * convRate : remainingQty;
         return {
           product_id: item.product_id?.toString() || '',
           product_name: item.product_name,
           quantity: remainingQty > 0 ? remainingQty.toString() : '',
+          base_quantity: baseQty.toString(),
           unit_price: item.unit_price?.toString() || '',
-          unit: item.unit || '',
+          unit: typeof item.unit === 'object' ? item.unit?.name || '' : item.unit || '',
+          unit_id: item.unit_id,
+          secondary_unit_id: item.secondary_unit_id,
+          conversion_rate: convRate,
           max_quantity: remainingQty, // Store max for validation
           subtotal: item.subtotal,
         };
       }) : [];
-      
+
       setReturnItems(items);
     } catch (error) {
       console.error('Error fetching purchase details:', error);
@@ -141,10 +148,10 @@ export default function PurchaseReturnScreen() {
     if (linkedPurchaseDetails) {
       const gross = Number(linkedPurchaseDetails.grand_total || 0) + Number(linkedPurchaseDetails.round_off || 0);
       const paid = Number(linkedPurchaseDetails.paid_amount || 0);
-      
+
       let priorRetTotal = 0;
       let priorRefTotal = 0;
-      
+
       if (linkedPurchaseDetails.returns && Array.isArray(linkedPurchaseDetails.returns)) {
         priorRetTotal = linkedPurchaseDetails.returns.reduce((sum, r) => sum + Number(r.total_amount || 0), 0);
         priorRefTotal = linkedPurchaseDetails.returns.reduce((sum, r) => sum + Number(r.cash_refund || 0), 0);
@@ -152,7 +159,7 @@ export default function PurchaseReturnScreen() {
 
       const outstanding = Math.max(0, gross - priorRetTotal - paid);
       const remainingPurchasableVal = gross - priorRetTotal;
-      
+
       const returnTotalVal = calculateTotal();
       const credit = Math.max(0, returnTotalVal - Number(cashRefund || 0));
 
@@ -174,7 +181,7 @@ export default function PurchaseReturnScreen() {
     } else {
       // No linked purchase - simple calculation
       const returnTotalVal = calculateTotal();
-      
+
       if (['CASH', 'CARD', 'UPI'].includes(refundMode)) {
         const currentRefund = Number(cashRefund || 0);
         if (currentRefund > returnTotalVal) {
@@ -205,7 +212,7 @@ export default function PurchaseReturnScreen() {
 
     const numVal = parseFloat(cleaned) || 0;
     const returnTotalVal = calculateTotal();
-    
+
     if (numVal > returnTotalVal) {
       setCashRefund(returnTotalVal.toString());
     } else {
@@ -214,13 +221,13 @@ export default function PurchaseReturnScreen() {
   };
 
   const addReturnItem = () => {
-    setReturnItems([...returnItems, { 
-      product_id: '', 
+    setReturnItems([...returnItems, {
+      product_id: '',
       product_name: '',
-      quantity: '', 
-      unit_price: '', 
+      quantity: '',
+      unit_price: '',
       unit: '',
-      max_quantity: null 
+      max_quantity: null
     }]);
   };
 
@@ -231,6 +238,11 @@ export default function PurchaseReturnScreen() {
       const parts = cleaned.split('.');
       if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
       updated[index][field] = cleaned;
+      
+      const qty = parseFloat(cleaned || 0);
+      const isSecondary = updated[index].unit_id && updated[index].unit_id == updated[index].secondary_unit_id;
+      const convRate = parseFloat(updated[index].conversion_rate || 1);
+      updated[index].base_quantity = (isSecondary ? qty * convRate : qty).toString();
     } else {
       updated[index][field] = value;
     }
@@ -276,7 +288,7 @@ export default function PurchaseReturnScreen() {
         if (item.max_quantity) {
           const returnedQty = Number(item.quantity) || 0;
           const maxQty = Number(item.max_quantity) || 0;
-          
+
           if (returnedQty > maxQty + 0.001) {
             Alert.alert(
               'Validation Error',
@@ -326,7 +338,13 @@ export default function PurchaseReturnScreen() {
         product_id: Number(item.product_id),
         quantity: Number(item.quantity),
         unit_price: Number(item.unit_price),
-        unit: item.unit || null,
+        unit: typeof item.unit === 'object' ? item.unit?.name || null : item.unit || null,
+        unit_id: item.unit_id || null,
+        base_quantity: item.base_quantity != null ? Number(item.base_quantity) : Number(item.quantity),
+        tax_rate: Number(item.tax_rate || 0),
+        tax: Number(item.tax || 0),
+        discount: Number(item.discount || 0),
+        subtotal: Number(item.quantity) * Number(item.unit_price),
       }));
 
       await apiClient.post('/purchase-returns', {
@@ -403,7 +421,7 @@ export default function PurchaseReturnScreen() {
           <CardSkeleton />
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           className="flex-1"
           contentContainerClassName="p-4 pb-12"
           showsVerticalScrollIndicator={false}
@@ -428,7 +446,7 @@ export default function PurchaseReturnScreen() {
                     {linkedPurchaseDetails.supplier?.name}
                   </Text>
                 </View>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => setSelectedPurchase(null)}
                   activeOpacity={0.8}
                   className="bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl"
@@ -436,7 +454,7 @@ export default function PurchaseReturnScreen() {
                   <Text className="text-rose-600 text-[10px] font-black uppercase tracking-wider">Clear</Text>
                 </TouchableOpacity>
               </View>
-              
+
               <View className="bg-white/80 border border-emerald-100 rounded-2xl p-4 gap-2.5">
                 <View className="flex-row justify-between">
                   <Text className="text-slate-500 text-xs font-bold">Gross Purchase</Text>
@@ -482,13 +500,11 @@ export default function PurchaseReturnScreen() {
                       key={supplier.id}
                       onPress={() => setSelectedSupplier(supplier.id)}
                       activeOpacity={0.8}
-                      className={`px-3.5 py-2 rounded-full border ${
-                        selectedSupplier === supplier.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                      }`}
+                      className={`px-3.5 py-2 rounded-full border ${selectedSupplier === supplier.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                        }`}
                     >
-                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                        selectedSupplier === supplier.id ? 'text-white' : 'text-slate-500'
-                      }`}>
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedSupplier === supplier.id ? 'text-white' : 'text-slate-500'
+                        }`}>
                         {supplier.name}
                       </Text>
                     </TouchableOpacity>
@@ -505,13 +521,11 @@ export default function PurchaseReturnScreen() {
                       key={warehouse.id}
                       onPress={() => setSelectedWarehouse(warehouse.id)}
                       activeOpacity={0.8}
-                      className={`px-3.5 py-2 rounded-full border ${
-                        selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                      }`}
+                      className={`px-3.5 py-2 rounded-full border ${selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                        }`}
                     >
-                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                        selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
-                      }`}>
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
+                        }`}>
                         {warehouse.name}
                       </Text>
                     </TouchableOpacity>
@@ -526,13 +540,11 @@ export default function PurchaseReturnScreen() {
                   <TouchableOpacity
                     onPress={() => setSelectedPurchase(null)}
                     activeOpacity={0.8}
-                    className={`px-3.5 py-2 rounded-full border ${
-                      selectedPurchase === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-3.5 py-2 rounded-full border ${selectedPurchase === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      selectedPurchase === null ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedPurchase === null ? 'text-white' : 'text-slate-500'
+                      }`}>
                       None
                     </Text>
                   </TouchableOpacity>
@@ -541,13 +553,11 @@ export default function PurchaseReturnScreen() {
                       key={purchase.id}
                       onPress={() => setSelectedPurchase(purchase.id)}
                       activeOpacity={0.8}
-                      className={`px-3.5 py-2 rounded-full border ${
-                        selectedPurchase === purchase.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                      }`}
+                      className={`px-3.5 py-2 rounded-full border ${selectedPurchase === purchase.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                        }`}
                     >
-                      <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                        selectedPurchase === purchase.id ? 'text-white' : 'text-slate-500'
-                      }`}>
+                      <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedPurchase === purchase.id ? 'text-white' : 'text-slate-500'
+                        }`}>
                         {purchase.formatted_id || `PRCH-${purchase.id}`}
                       </Text>
                     </TouchableOpacity>
@@ -579,13 +589,11 @@ export default function PurchaseReturnScreen() {
                     key={mode}
                     onPress={() => handleRefundModeChange(mode)}
                     activeOpacity={0.8}
-                    className={`px-4 py-2 rounded-full border ${
-                      refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-4 py-2 rounded-full border ${refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      refundMode === mode ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${refundMode === mode ? 'text-white' : 'text-slate-500'
+                      }`}>
                       {mode}
                     </Text>
                   </TouchableOpacity>
@@ -594,18 +602,18 @@ export default function PurchaseReturnScreen() {
             </View>
 
             {/* Cash Refund */}
-              <View>
-                <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">
-                  Refund Amount {linkedPurchaseDetails && `(Max: ₹${maxRefundable.toFixed(2)})`} *
-                </Text>
-                <TextInput
-                  value={cashRefund}
-                  onChangeText={handleCashRefundChange}
-                  keyboardType="numeric"
-                  className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
-                  placeholder="Enter refund amount"
-                />
-              </View>
+            <View>
+              <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 ml-1 font-bold">
+                Refund Amount {linkedPurchaseDetails && `(Max: ₹${maxRefundable.toFixed(2)})`} *
+              </Text>
+              <TextInput
+                value={cashRefund}
+                onChangeText={handleCashRefundChange}
+                keyboardType="numeric"
+                className="bg-white border-2 border-slate-200 rounded-2xl px-4 py-3.5 text-slate-800 text-sm font-bold focus:border-orange-400"
+                placeholder="Enter refund amount"
+              />
+            </View>
           </GlassCard>
 
           {/* Current Return Summary Card */}
@@ -617,10 +625,10 @@ export default function PurchaseReturnScreen() {
                   <Text className="text-slate-500 text-xs font-bold">Return Value</Text>
                   <Text className="text-slate-800 text-xs font-black">₹{calculateTotal().toFixed(2)}</Text>
                 </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-slate-500 text-xs font-bold">Cash Refund</Text>
-                    <Text className="text-indigo-600 text-xs font-black">₹{(Number(cashRefund) || 0).toFixed(2)}</Text>
-                  </View>
+                <View className="flex-row justify-between">
+                  <Text className="text-slate-500 text-xs font-bold">Cash Refund</Text>
+                  <Text className="text-indigo-600 text-xs font-black">₹{(Number(cashRefund) || 0).toFixed(2)}</Text>
+                </View>
                 <View className="border-t border-slate-100 pt-2.5 mt-1">
                   <View className="flex-row justify-between">
                     <Text className="text-slate-700 text-xs font-black uppercase tracking-wider">Supplier Credit</Text>
@@ -635,7 +643,7 @@ export default function PurchaseReturnScreen() {
           <GlassCard className="mb-4 p-4">
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">Return Items *</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={addReturnItem}
                 activeOpacity={0.8}
                 className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"
@@ -703,8 +711,8 @@ export default function PurchaseReturnScreen() {
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Unit</Text>
                     <TextInput
                       value={item.unit}
-                      onChangeText={(text) => updateReturnItem(index, 'unit', text)}
-                      className="bg-white border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-800 text-xs font-bold focus:border-orange-400"
+                      editable={false}
+                      className="bg-slate-50 border-2 border-slate-200 rounded-2xl px-3 py-3 text-slate-500 text-xs font-bold"
                       placeholder="Unit"
                     />
                   </View>

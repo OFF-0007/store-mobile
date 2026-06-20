@@ -54,13 +54,25 @@ export default function SalesReturnScreen() {
   const fetchSaleItems = async (saleId) => {
     try {
       const res = await apiClient.get(`/sales/${saleId}/items`);
-      const items = res.data.map(item => ({
-        product_id: item.product_id,
-        product_name: item.product_name,
-        quantity: item.quantity.toString(),
-        unit_price: item.unit_price.toString(),
-        tax_rate: item.tax_rate.toString(),
-      }));
+      const items = res.data.map(item => {
+        const isSecondary = item.unit_id && item.unit_id == item.secondary_unit_id;
+        const convRate = parseFloat(item.conversion_rate || 1);
+        const qty = parseFloat(item.quantity);
+        const baseQty = isSecondary ? qty * convRate : qty;
+
+        return {
+          product_id: item.product_id,
+          product_name: item.product_name,
+          quantity: item.quantity.toString(),
+          base_quantity: baseQty.toString(),
+          unit_price: item.unit_price.toString(),
+          tax_rate: item.tax_rate.toString(),
+          unit: typeof item.unit === 'object' ? item.unit?.name || '' : item.unit || '',
+          unit_id: item.unit_id,
+          secondary_unit_id: item.secondary_unit_id,
+          conversion_rate: convRate,
+        };
+      });
       setReturnItems(items);
     } catch (error) {
       console.error('Error fetching sale items:', error);
@@ -92,7 +104,19 @@ export default function SalesReturnScreen() {
 
   const updateReturnItem = (index, field, value) => {
     const updated = [...returnItems];
-    updated[index][field] = value;
+    if (field === 'quantity') {
+      let cleaned = value.replace(/[^0-9.]/g, '');
+      const parts = cleaned.split('.');
+      if (parts.length > 2) cleaned = parts[0] + '.' + parts.slice(1).join('');
+      updated[index][field] = cleaned;
+      
+      const qty = parseFloat(cleaned || 0);
+      const isSecondary = updated[index].unit_id != null && updated[index].unit_id == updated[index].secondary_unit_id;
+      const convRate = parseFloat(updated[index].conversion_rate || 1);
+      updated[index].base_quantity = (isSecondary ? qty * convRate : qty).toString();
+    } else {
+      updated[index][field] = value;
+    }
     setReturnItems(updated);
   };
 
@@ -119,7 +143,15 @@ export default function SalesReturnScreen() {
       return;
     }
 
-    const validItems = returnItems.filter(item => item.product_id && item.quantity && item.unit_price);
+    const validItems = returnItems.map(item => {
+      const qty = parseFloat(item.quantity) || 0;
+      const isSecondary = item.unit_id != null && item.unit_id == item.secondary_unit_id;
+      const convRate = parseFloat(item.conversion_rate || 1);
+      return {
+        ...item,
+        base_quantity: isSecondary ? qty * convRate : qty
+      };
+    }).filter(item => item.product_id && item.quantity && item.unit_price);
     if (validItems.length === 0) {
       Alert.alert('Validation Error', 'Please fill in all item details');
       return;
@@ -200,7 +232,7 @@ export default function SalesReturnScreen() {
           <CardSkeleton />
         </View>
       ) : (
-        <ScrollView 
+        <ScrollView
           className="flex-1"
           contentContainerClassName="p-4 pb-12"
           showsVerticalScrollIndicator={false}
@@ -218,13 +250,11 @@ export default function SalesReturnScreen() {
                 <TouchableOpacity
                   onPress={() => setSelectedCustomer(null)}
                   activeOpacity={0.8}
-                  className={`px-3.5 py-2 rounded-full border ${
-                    selectedCustomer === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                  }`}
+                  className={`px-3.5 py-2 rounded-full border ${selectedCustomer === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
                 >
-                  <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                    selectedCustomer === null ? 'text-white' : 'text-slate-500'
-                  }`}>
+                  <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedCustomer === null ? 'text-white' : 'text-slate-500'
+                    }`}>
                     Walk-in
                   </Text>
                 </TouchableOpacity>
@@ -233,13 +263,11 @@ export default function SalesReturnScreen() {
                     key={customer.id}
                     onPress={() => setSelectedCustomer(customer.id)}
                     activeOpacity={0.8}
-                    className={`px-3.5 py-2 rounded-full border ${
-                      selectedCustomer === customer.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-3.5 py-2 rounded-full border ${selectedCustomer === customer.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      selectedCustomer === customer.id ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedCustomer === customer.id ? 'text-white' : 'text-slate-500'
+                      }`}>
                       {customer.name}
                     </Text>
                   </TouchableOpacity>
@@ -256,13 +284,11 @@ export default function SalesReturnScreen() {
                     key={warehouse.id}
                     onPress={() => setSelectedWarehouse(warehouse.id)}
                     activeOpacity={0.8}
-                    className={`px-3.5 py-2 rounded-full border ${
-                      selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-3.5 py-2 rounded-full border ${selectedWarehouse === warehouse.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedWarehouse === warehouse.id ? 'text-white' : 'text-slate-500'
+                      }`}>
                       {warehouse.name}
                     </Text>
                   </TouchableOpacity>
@@ -277,13 +303,11 @@ export default function SalesReturnScreen() {
                 <TouchableOpacity
                   onPress={() => setSelectedSale(null)}
                   activeOpacity={0.8}
-                  className={`px-3.5 py-2 rounded-full border ${
-                    selectedSale === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                  }`}
+                  className={`px-3.5 py-2 rounded-full border ${selectedSale === null ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                    }`}
                 >
-                  <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                    selectedSale === null ? 'text-white' : 'text-slate-500'
-                  }`}>
+                  <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedSale === null ? 'text-white' : 'text-slate-500'
+                    }`}>
                     None
                   </Text>
                 </TouchableOpacity>
@@ -292,13 +316,11 @@ export default function SalesReturnScreen() {
                     key={sale.id}
                     onPress={() => setSelectedSale(sale.id)}
                     activeOpacity={0.8}
-                    className={`px-3.5 py-2 rounded-full border ${
-                      selectedSale === sale.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-3.5 py-2 rounded-full border ${selectedSale === sale.id ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      selectedSale === sale.id ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${selectedSale === sale.id ? 'text-white' : 'text-slate-500'
+                      }`}>
                       {sale.formatted_id || `SALE-${sale.id}`}
                     </Text>
                   </TouchableOpacity>
@@ -329,13 +351,11 @@ export default function SalesReturnScreen() {
                     key={mode}
                     onPress={() => setRefundMode(mode)}
                     activeOpacity={0.8}
-                    className={`px-4 py-2 rounded-full border ${
-                      refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
-                    }`}
+                    className={`px-4 py-2 rounded-full border ${refundMode === mode ? 'bg-orange-500 border-orange-500 shadow-sm' : 'bg-slate-50 border-slate-200'
+                      }`}
                   >
-                    <Text className={`text-[10px] font-black uppercase tracking-wider ${
-                      refundMode === mode ? 'text-white' : 'text-slate-500'
-                    }`}>
+                    <Text className={`text-[10px] font-black uppercase tracking-wider ${refundMode === mode ? 'text-white' : 'text-slate-500'
+                      }`}>
                       {mode}
                     </Text>
                   </TouchableOpacity>
@@ -349,9 +369,8 @@ export default function SalesReturnScreen() {
               activeOpacity={0.8}
               className="flex-row items-center mt-1 ml-1"
             >
-              <View className={`w-5.5 h-5.5 rounded-lg border-2 items-center justify-center mr-3 ${
-                isOutsideState ? 'bg-orange-500 border-orange-500 shadow-sm' : 'border-slate-300'
-              }`}>
+              <View className={`w-5.5 h-5.5 rounded-lg border-2 items-center justify-center mr-3 ${isOutsideState ? 'bg-orange-500 border-orange-500 shadow-sm' : 'border-slate-300'
+                }`}>
                 {isOutsideState && <Ionicons name="checkmark" size={12} color="#fff" />}
               </View>
               <Text className="text-slate-600 text-xs font-bold uppercase tracking-wider">Outside State Transaction</Text>
@@ -387,7 +406,7 @@ export default function SalesReturnScreen() {
           <GlassCard className="mb-4 p-4">
             <View className="flex-row justify-between items-center mb-3">
               <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">Return Items *</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={addReturnItem}
                 activeOpacity={0.8}
                 className="bg-orange-500/10 border border-orange-200 px-3 py-1.5 rounded-lg"

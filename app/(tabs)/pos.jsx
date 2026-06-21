@@ -1036,9 +1036,8 @@ export default function POSScreen() {
                   </View>
                 </View>
 
-                {/* Customer Info - Only shown when taking on Credit (Partial Payment) */}
-                {(grandTotal > 0 && Number(paidAmount || 0) < grandTotal) && (
-                  <>
+                {/* Customer Info */}
+                <>
                     {/* Customer Input */}
                     <View className="relative mt-2">
                       <Text className="text-xs font-black text-slate-500 uppercase tracking-wider mb-2 ml-1">
@@ -1090,8 +1089,7 @@ export default function POSScreen() {
                           }`}
                       />
                     </View>
-                  </>
-                )}
+                </>
               </View>
             </GlassCard>
           )}

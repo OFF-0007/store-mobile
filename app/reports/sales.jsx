@@ -311,7 +311,7 @@ export default function SalesReportScreen() {
                 </View>
 
                 <View className="w-20 items-end">
-                  <Text className="text-slate-800 text-xs font-black">{s.items?.length || 0} Items</Text>
+                  <Text className="text-slate-800 text-xs font-black">{s.items_count || 0} Items</Text>
                   <Text className="text-slate-400 text-[9px] font-bold mt-0.5">Tax: {fmt(s.tax_amount)}</Text>
                 </View>
 

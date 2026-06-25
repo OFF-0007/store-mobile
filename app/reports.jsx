@@ -4,6 +4,7 @@
  * Fully supports PDF and CSV export using native Print & Share capabilities.
  * Horizontal scrollable tabs and clean warm-themed cards.
  */
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -482,6 +483,19 @@ export default function ReportsScreen() {
   // Date filters
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+
+  const onFromDateChange = (event, selectedDate) => {
+    setShowFromPicker(false);
+    if (selectedDate) setFromDate(selectedDate.toISOString().split('T')[0]);
+  };
+
+  const onToDateChange = (event, selectedDate) => {
+    setShowToPicker(false);
+    if (selectedDate) setToDate(selectedDate.toISOString().split('T')[0]);
+  };
+
 
   // Period sales highlights
   const [periodHighlights, setPeriodHighlights] = useState(null);
@@ -884,21 +898,23 @@ export default function ReportsScreen() {
         <View className="flex-row gap-2">
           <View className="flex-1">
             <Text className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Start Date</Text>
-            <TextInput
-              value={fromDate}
-              onChangeText={setFromDate}
-              placeholder="YYYY-MM-DD"
-              className="bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold focus:border-orange-400"
-            />
+            <TouchableOpacity onPress={() => setShowFromPicker(true)} className="bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{fromDate || "Start Date"}</Text>
+              <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+            </TouchableOpacity>
           </View>
           <View className="flex-1">
             <Text className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">End Date</Text>
-            <TextInput
-              value={toDate}
-              onChangeText={setToDate}
-              placeholder="YYYY-MM-DD"
-              className="bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-slate-800 text-xs font-bold focus:border-orange-400"
-            />
+            <TouchableOpacity onPress={() => setShowToPicker(true)} className="bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{toDate || "End Date"}</Text>
+              <Ionicons name="calendar-outline" size={16} color="#94a3b8" />
+            </TouchableOpacity>
+            {showFromPicker && (
+              <DateTimePicker value={fromDate ? new Date(fromDate) : new Date()} mode="date" display="default" onChange={onFromDateChange} />
+            )}
+            {showToPicker && (
+              <DateTimePicker value={toDate ? new Date(toDate) : new Date()} mode="date" display="default" onChange={onToDateChange} />
+            )}
           </View>
         </View>
 

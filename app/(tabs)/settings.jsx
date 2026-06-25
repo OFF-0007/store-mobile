@@ -295,6 +295,15 @@ export default function SettingsScreen() {
                 onPress={() => router.push("/settings/expenses")}
               />
             )}
+            {(user?.role === 'Company Owner' || user?.role === 'Store Admin') && (
+              <AccountListItem
+                icon="card-outline"
+                iconBg="bg-blue-500"
+                title="Bank Accounts"
+                subtitle="Manage store bank details"
+                onPress={() => router.push("/settings/banks")}
+              />
+            )}
           </GlassCard>
         </View>
 

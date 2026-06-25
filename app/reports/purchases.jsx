@@ -1,3 +1,4 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -49,6 +50,21 @@ export default function PurchaseReportScreen() {
   const [pagination, setPagination] = useState({ offset: 0, limit: 10, total: 0, has_more: false });
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+
+  const onFromDateChange = (event, selectedDate) => {
+    setShowFromPicker(false);
+    if (selectedDate) setFromDate(selectedDate.toISOString().split('T')[0]);
+  };
+
+  const onToDateChange = (event, selectedDate) => {
+    setShowToPicker(false);
+    if (selectedDate) setToDate(selectedDate.toISOString().split('T')[0]);
+  };
+
+  const [paymentMethod, setPaymentMethod] = useState("all");
+  const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Detail Modal States
@@ -149,7 +165,7 @@ export default function PurchaseReportScreen() {
       else { setLoading(true); setError(null); }
 
       const res = await apiClient.get("/reports/purchases", {
-        params: { limit: 10, offset, from: fromDate || undefined, to: toDate || undefined },
+        params: { limit: 10, offset, from: fromDate || undefined, to: toDate || undefined, payment_method: paymentMethod !== 'all' ? paymentMethod : undefined },
       });
 
       if (loadMore) {
@@ -160,9 +176,9 @@ export default function PurchaseReportScreen() {
       setPagination(res.data.pagination);
     } catch (e) { setError(e.message || "Failed to load purchase report"); }
     finally { setLoading(false); setLoadingMore(false); }
-  }, [fromDate, toDate, pagination.offset, pagination.limit]);
+  }, [fromDate, toDate, pagination.offset, pagination.limit, paymentMethod]);
 
-  useEffect(() => { if (isFocused) fetchReport(); }, [isFocused, fromDate, toDate]);
+  useEffect(() => { if (isFocused) fetchReport(); }, [isFocused, fromDate, toDate, paymentMethod]);
 
   const handleScroll = (event) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -180,7 +196,7 @@ export default function PurchaseReportScreen() {
         <View className="flex-1 items-center">
           <Text className="text-white font-black text-base uppercase tracking-wider">Purchase Report</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setIsExpanded(!isExpanded)}
           className="p-2 bg-white/20 rounded-xl flex-row items-center gap-1 border border-white/30"
         >
@@ -189,10 +205,53 @@ export default function PurchaseReportScreen() {
         </TouchableOpacity>
       </View>
 
-      <View className="bg-white border-b border-slate-100 p-4">
-        <View className="flex-row gap-2">
-          <TextInput placeholderTextColor="#94a3b8" value={fromDate} onChangeText={setFromDate} placeholder="Start Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
-          <TextInput placeholderTextColor="#94a3b8" value={toDate} onChangeText={setToDate} placeholder="End Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
+      <View className="bg-white border-b border-slate-100 p-4 z-50">
+        <View className="flex-row gap-2 mb-3">
+          <TouchableOpacity onPress={() => setShowFromPicker(true)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{fromDate || "Start Date"}</Text>
+              <Ionicons name="calendar-outline" size={14} color="#94a3b8" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowToPicker(true)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{toDate || "End Date"}</Text>
+              <Ionicons name="calendar-outline" size={14} color="#94a3b8" />
+            </TouchableOpacity>
+            {showFromPicker && (
+              <DateTimePicker value={fromDate ? new Date(fromDate) : new Date()} mode="date" display="default" onChange={onFromDateChange} />
+            )}
+            {showToPicker && (
+              <DateTimePicker value={toDate ? new Date(toDate) : new Date()} mode="date" display="default" onChange={onToDateChange} />
+            )}
+        </View>
+        <View className="relative z-50">
+          <TouchableOpacity
+            onPress={() => setShowPaymentDropdown(!showPaymentDropdown)}
+            className="flex-row items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl"
+          >
+            <Text className="text-xs font-black text-slate-700 uppercase tracking-widest">
+              {paymentMethod === 'all' ? 'All Methods' : paymentMethod}
+            </Text>
+            <Ionicons name={showPaymentDropdown ? "chevron-up" : "chevron-down"} size={16} color="#64748b" />
+          </TouchableOpacity>
+
+          {showPaymentDropdown && (
+            <View className="mt-2 bg-slate-50 border border-slate-100 rounded-xl overflow-hidden">
+              {['all', 'Cash', 'Card', 'UPI'].map((method, index) => (
+                <TouchableOpacity
+                  key={method}
+                  onPress={() => {
+                    setPaymentMethod(method);
+                    setShowPaymentDropdown(false);
+                  }}
+                  className={`p-3 flex-row items-center justify-between ${index !== 3 ? 'border-b border-slate-100' : ''}`}
+                >
+                  <Text className={`text-xs font-bold uppercase tracking-wider ${paymentMethod === method ? 'text-orange-500' : 'text-slate-500'}`}>
+                    {method === 'all' ? 'All Methods' : method}
+                  </Text>
+                  {paymentMethod === method && <Ionicons name="checkmark-circle" size={16} color="#f97316" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </View>
 
@@ -204,41 +263,41 @@ export default function PurchaseReportScreen() {
       >
         {isExpanded && data?.summary && (
           <View className="flex-row flex-wrap gap-2 mb-4">
-            <SummaryCard 
-              label="Gross Purchase" 
-              value={fmt(data.summary.total_amount)} 
-              icon={<Ionicons name="cart-outline" size={16} color="#475569" />} 
-              accent="bg-slate-50/50" 
+            <SummaryCard
+              label="Gross Purchase"
+              value={fmt(data.summary.total_amount)}
+              icon={<Ionicons name="cart-outline" size={16} color="#475569" />}
+              accent="bg-slate-50/50"
             />
-            <SummaryCard 
-              label="Purchase Return" 
-              value={fmt(data.summary.total_returned)} 
-              icon={<Ionicons name="refresh-outline" size={16} color="#e11d48" />} 
-              accent="bg-rose-50/50 border-l-2 border-l-rose-400" 
+            <SummaryCard
+              label="Purchase Return"
+              value={fmt(data.summary.total_returned)}
+              icon={<Ionicons name="refresh-outline" size={16} color="#e11d48" />}
+              accent="bg-rose-50/50 border-l-2 border-l-rose-400"
             />
-            <SummaryCard 
-              label="Net Purchase" 
-              value={fmt(data.summary.net_purchase)} 
-              icon={<Ionicons name="calculator-outline" size={16} color="#475569" />} 
-              accent="bg-slate-50/50 border-l-2 border-l-slate-400" 
+            <SummaryCard
+              label="Net Purchase"
+              value={fmt(data.summary.net_purchase)}
+              icon={<Ionicons name="calculator-outline" size={16} color="#475569" />}
+              accent="bg-slate-50/50 border-l-2 border-l-slate-400"
             />
-            <SummaryCard 
-              label="Total Paid" 
-              value={fmt(data.summary.total_paid)} 
-              icon={<Ionicons name="wallet-outline" size={16} color="#1d4ed8" />} 
-              accent="bg-blue-50/50 border-l-2 border-l-blue-400" 
+            <SummaryCard
+              label="Total Paid"
+              value={fmt(data.summary.total_paid)}
+              icon={<Ionicons name="wallet-outline" size={16} color="#1d4ed8" />}
+              accent="bg-blue-50/50 border-l-2 border-l-blue-400"
             />
-            <SummaryCard 
-              label="Refund Received" 
-              value={fmt(data.summary.refund_received)} 
-              icon={<Ionicons name="download-outline" size={16} color="#4f46e5" />} 
-              accent="bg-indigo-50/50 border-l-2 border-l-indigo-400" 
+            <SummaryCard
+              label="Refund Received"
+              value={fmt(data.summary.refund_received)}
+              icon={<Ionicons name="download-outline" size={16} color="#4f46e5" />}
+              accent="bg-indigo-50/50 border-l-2 border-l-indigo-400"
             />
-            <SummaryCard 
-              label="Net Paid" 
-              value={fmt(data.summary.net_paid)} 
-              icon={<Ionicons name="checkmark-circle-outline" size={16} color="#059669" />} 
-              accent="bg-emerald-50/50 border-l-2 border-l-emerald-400" 
+            <SummaryCard
+              label="Net Paid"
+              value={fmt(data.summary.net_paid)}
+              icon={<Ionicons name="checkmark-circle-outline" size={16} color="#059669" />}
+              accent="bg-emerald-50/50 border-l-2 border-l-emerald-400"
             />
           </View>
         )}
@@ -258,8 +317,8 @@ export default function PurchaseReportScreen() {
             <Text className="text-slate-400 text-center py-10 font-bold">No records found</Text>
           ) : (
             data?.purchases?.map((p, i) => (
-              <TouchableOpacity 
-                key={p.id} 
+              <TouchableOpacity
+                key={p.id}
                 onPress={() => handleShowDetails(p.id)}
                 activeOpacity={0.7}
                 className={`py-3.5 flex-row items-center ${i < data.purchases.length - 1 ? "border-b border-slate-100" : ""}`}
@@ -311,7 +370,7 @@ export default function PurchaseReportScreen() {
                   {selectedPurchase?.formatted_id || "Loading..."}
                 </Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowDetailModal(false)}
                 className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center"
               >

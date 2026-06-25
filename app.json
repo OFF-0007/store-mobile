@@ -41,7 +41,8 @@
         {
           "cameraPermission": "Allow StoreManage to access your camera to scan item barcodes."
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "typedRoutes": true

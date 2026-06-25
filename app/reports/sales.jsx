@@ -1,3 +1,4 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -72,6 +73,21 @@ export default function SalesReportScreen() {
   const [pagination, setPagination] = useState({ offset: 0, limit: 10, total: 0, has_more: false });
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+  const [showFromPicker, setShowFromPicker] = useState(false);
+  const [showToPicker, setShowToPicker] = useState(false);
+
+  const onFromDateChange = (event, selectedDate) => {
+    setShowFromPicker(false);
+    if (selectedDate) setFromDate(selectedDate.toISOString().split('T')[0]);
+  };
+
+  const onToDateChange = (event, selectedDate) => {
+    setShowToPicker(false);
+    if (selectedDate) setToDate(selectedDate.toISOString().split('T')[0]);
+  };
+
+  const [paymentMethod, setPaymentMethod] = useState("all");
+  const [showPaymentDropdown, setShowPaymentDropdown] = useState(false);
   const [periodHighlights, setPeriodHighlights] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
 
@@ -113,6 +129,7 @@ export default function SalesReportScreen() {
           offset,
           from: fromDate || undefined,
           to: toDate || undefined,
+          payment_method: paymentMethod !== 'all' ? paymentMethod : undefined,
         },
       });
 
@@ -132,14 +149,14 @@ export default function SalesReportScreen() {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [fromDate, toDate, pagination.offset, pagination.limit]);
+  }, [fromDate, toDate, pagination.offset, pagination.limit, paymentMethod]);
 
   useEffect(() => {
     if (isFocused) {
-      apiClient.get('/reports/sales-summary').then(res => setPeriodHighlights(res.data)).catch(() => {});
+      apiClient.get('/reports/sales-summary').then(res => setPeriodHighlights(res.data)).catch(() => { });
       fetchReport();
     }
-  }, [isFocused, fromDate, toDate]);
+  }, [isFocused, fromDate, toDate, paymentMethod]);
 
   const handleScroll = (event) => {
     const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
@@ -165,7 +182,7 @@ export default function SalesReportScreen() {
         <View className="flex-1 items-center">
           <Text className="text-white font-black text-base uppercase tracking-wider">Sales Report</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setIsExpanded(!isExpanded)}
           className="p-2 bg-white/20 rounded-xl flex-row items-center gap-1 border border-white/30"
         >
@@ -174,10 +191,53 @@ export default function SalesReportScreen() {
         </TouchableOpacity>
       </View>
 
-      <View className="bg-white border-b border-slate-100 p-4">
+      <View className="bg-white border-b border-slate-100 p-4 z-50">
         <View className="flex-row gap-2 mb-3">
-          <TextInput placeholderTextColor="#94a3b8" value={fromDate} onChangeText={setFromDate} placeholder="Start Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
-          <TextInput placeholderTextColor="#94a3b8" value={toDate} onChangeText={setToDate} placeholder="End Date (YYYY-MM-DD)" className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800" />
+          <TouchableOpacity onPress={() => setShowFromPicker(true)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{fromDate || "Start Date"}</Text>
+              <Ionicons name="calendar-outline" size={14} color="#94a3b8" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowToPicker(true)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 flex-row justify-between items-center">
+              <Text className="text-xs font-bold text-slate-800">{toDate || "End Date"}</Text>
+              <Ionicons name="calendar-outline" size={14} color="#94a3b8" />
+            </TouchableOpacity>
+            {showFromPicker && (
+              <DateTimePicker value={fromDate ? new Date(fromDate) : new Date()} mode="date" display="default" onChange={onFromDateChange} />
+            )}
+            {showToPicker && (
+              <DateTimePicker value={toDate ? new Date(toDate) : new Date()} mode="date" display="default" onChange={onToDateChange} />
+            )}
+        </View>
+        <View className="relative z-50">
+          <TouchableOpacity
+            onPress={() => setShowPaymentDropdown(!showPaymentDropdown)}
+            className="flex-row items-center justify-between bg-slate-50 border border-slate-200 p-3 rounded-xl"
+          >
+            <Text className="text-xs font-black text-slate-700 uppercase tracking-widest">
+              {paymentMethod === 'all' ? 'All Methods' : paymentMethod}
+            </Text>
+            <Ionicons name={showPaymentDropdown ? "chevron-up" : "chevron-down"} size={16} color="#64748b" />
+          </TouchableOpacity>
+
+          {showPaymentDropdown && (
+            <View className="mt-2 bg-slate-50 border border-slate-100 rounded-xl overflow-hidden">
+              {['all', 'Cash', 'Card', 'UPI'].map((method, index) => (
+                <TouchableOpacity
+                  key={method}
+                  onPress={() => {
+                    setPaymentMethod(method);
+                    setShowPaymentDropdown(false);
+                  }}
+                  className={`p-3 flex-row items-center justify-between ${index !== 3 ? 'border-b border-slate-100' : ''}`}
+                >
+                  <Text className={`text-xs font-bold uppercase tracking-wider ${paymentMethod === method ? 'text-orange-500' : 'text-slate-500'}`}>
+                    {method === 'all' ? 'All Methods' : method}
+                  </Text>
+                  {paymentMethod === method && <Ionicons name="checkmark-circle" size={16} color="#f97316" />}
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
         </View>
       </View>
 
@@ -189,29 +249,29 @@ export default function SalesReportScreen() {
       >
         {isExpanded && data?.summary && (
           <View className="flex-row flex-wrap gap-2 mb-4">
-            <SummaryCard 
-              label="Sales Amount" 
-              value={fmt(data.summary.total_amount)} 
-              icon={<Ionicons name="cash-outline" size={16} color="#10b981" />} 
-              accent="bg-emerald-50/50" 
+            <SummaryCard
+              label="Sales Amount"
+              value={fmt(data.summary.total_amount)}
+              icon={<Ionicons name="cash-outline" size={16} color="#10b981" />}
+              accent="bg-emerald-50/50"
             />
-            <SummaryCard 
-              label="Invoice Count" 
-              value={String(data.summary.total_sales || 0)} 
-              icon={<Ionicons name="document-text-outline" size={16} color="#6366f1" />} 
-              accent="bg-indigo-50/50" 
+            <SummaryCard
+              label="Invoice Count"
+              value={String(data.summary.total_sales || 0)}
+              icon={<Ionicons name="document-text-outline" size={16} color="#6366f1" />}
+              accent="bg-indigo-50/50"
             />
-            <SummaryCard 
-              label="Total Tax" 
-              value={fmt(data.summary.total_tax)} 
-              icon={<Ionicons name="receipt-outline" size={16} color="#f59e0b" />} 
-              accent="bg-amber-50/50" 
+            <SummaryCard
+              label="Total Tax"
+              value={fmt(data.summary.total_tax)}
+              icon={<Ionicons name="receipt-outline" size={16} color="#f59e0b" />}
+              accent="bg-amber-50/50"
             />
-            <SummaryCard 
-              label="Total Discount" 
-              value={fmt(data.summary.total_discount)} 
-              icon={<Ionicons name="trending-down-outline" size={16} color="#64748b" />} 
-              accent="bg-slate-100/50" 
+            <SummaryCard
+              label="Total Discount"
+              value={fmt(data.summary.total_discount)}
+              icon={<Ionicons name="trending-down-outline" size={16} color="#64748b" />}
+              accent="bg-slate-100/50"
             />
           </View>
         )}
@@ -231,8 +291,8 @@ export default function SalesReportScreen() {
             <Text className="text-slate-400 text-center py-10 font-bold">No sales records found</Text>
           ) : (
             data?.sales?.map((s, i) => (
-              <TouchableOpacity 
-                key={s.id} 
+              <TouchableOpacity
+                key={s.id}
                 onPress={() => handleShowDetails(s.id)}
                 activeOpacity={0.7}
                 className={`py-3.5 flex-row items-center ${i < data.sales.length - 1 ? "border-b border-slate-100" : ""}`}
@@ -281,7 +341,7 @@ export default function SalesReportScreen() {
                   {selectedSale?.formatted_id || "Loading..."}
                 </Text>
               </View>
-              <TouchableOpacity 
+              <TouchableOpacity
                 onPress={() => setShowDetailModal(false)}
                 className="w-10 h-10 bg-slate-100 rounded-full items-center justify-center"
               >

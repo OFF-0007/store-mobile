@@ -6,11 +6,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { GlassCard } from "@/components/ui";
 
 let BLEPrinter = null;
-try {
-  BLEPrinter = require("react-native-thermal-receipt-printer").BLEPrinter;
-} catch (e) {
-  console.warn("BLEPrinter module not available:", e.message);
-}
 
 export default function BluetoothSettingsScreen() {
   const router = useRouter();

@@ -78,12 +78,22 @@ export default function SalesReportScreen() {
 
   const onFromDateChange = (event, selectedDate) => {
     setShowFromPicker(false);
-    if (selectedDate) setFromDate(selectedDate.toISOString().split('T')[0]);
+    if (selectedDate && event.type !== 'dismissed') {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      setFromDate(`${year}-${month}-${day}`);
+    }
   };
 
   const onToDateChange = (event, selectedDate) => {
     setShowToPicker(false);
-    if (selectedDate) setToDate(selectedDate.toISOString().split('T')[0]);
+    if (selectedDate && event.type !== 'dismissed') {
+      const year = selectedDate.getFullYear();
+      const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+      const day = String(selectedDate.getDate()).padStart(2, '0');
+      setToDate(`${year}-${month}-${day}`);
+    }
   };
 
   const [paymentMethod, setPaymentMethod] = useState("all");

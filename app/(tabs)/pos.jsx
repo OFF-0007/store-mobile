@@ -311,12 +311,16 @@ export default function POSScreen() {
       tax += itemTax;
       disc += itemDiscountAmount;
 
+      const convRate = item.unit_id == item.product.secondary_unit_id ? (item.product.conversion_rate || 1) : 1;
+      const displayStock = Math.floor(item.product.stock / convRate);
+
       return {
         ...item,
         discount_amount: itemDiscountAmount,
         taxable_value: itemTaxableValue,
         tax_amount: itemTax,
         subtotal: itemSubtotal,
+        display_stock: displayStock,
       };
     });
 
@@ -494,7 +498,10 @@ export default function POSScreen() {
         setCart([]);
         setAdditionalNotes("");
         setSaleDate(new Date().toISOString().split("T")[0]);
+        setIsPayableAmountEdited(false);
+        setPayableAmount("");
         setIsPaidAmountEdited(false);
+        setPaidAmount("");
         setSelectedCustomerId(null);
         setCustomerName("");
         setCustomerPhone("");
@@ -857,7 +864,13 @@ export default function POSScreen() {
                 <Text className="text-slate-800 font-black text-sm uppercase tracking-wider">
                   Cart ({cart.reduce((sum, item) => sum + item.quantity, 0)})
                 </Text>
-                <TouchableOpacity onPress={() => setCart([])}>
+                <TouchableOpacity onPress={() => {
+                  setCart([]);
+                  setIsPayableAmountEdited(false);
+                  setPayableAmount("");
+                  setIsPaidAmountEdited(false);
+                  setPaidAmount("");
+                }}>
                   <Text className="text-rose-500 text-[10px] font-black uppercase tracking-widest bg-rose-50 px-2 py-1 rounded">
                     Clear
                   </Text>
@@ -876,7 +889,7 @@ export default function POSScreen() {
                           {item.name}
                         </Text>
                         <Text className="text-slate-400 text-[10px] font-bold">
-                          ₹{item.price} • Stock: {item.available_stock} 
+                          ₹{item.price} • Stock: {item.display_stock} 
                         </Text>
                       </View>
                       <View className="items-end gap-1">
@@ -914,8 +927,8 @@ export default function POSScreen() {
                               }
                               const parsed = parseInt(val, 10);
                               if (!isNaN(parsed)) {
-                                if (parsed > item.available_stock) {
-                                  Alert.alert("Stock Limit", `Only ${item.available_stock} available.`);
+                                if (parsed > item.display_stock) {
+                                  Alert.alert("Stock Limit", `Only ${item.display_stock} available.`);
                                   return;
                                 }
                                 updateItemQuantity(item.product_id, parsed);
@@ -927,8 +940,8 @@ export default function POSScreen() {
                         </View>
                         <TouchableOpacity
                           onPress={() => {
-                            if (item.quantity >= item.available_stock) {
-                              Alert.alert("Stock Limit", `Only ${item.available_stock} available.`);
+                            if (item.quantity >= item.display_stock) {
+                              Alert.alert("Stock Limit", `Only ${item.display_stock} available.`);
                               return;
                             }
                             updateItemQuantity(item.product_id, item.quantity + 1);
@@ -1152,7 +1165,10 @@ export default function POSScreen() {
  
       {/* ── CHECKOUT MODAL (Math & Submit) ─────────────────────────────────── */}
       <Modal visible={showCheckoutModal} animationType="slide" transparent>
-        <View className="flex-1 bg-black/60 justify-end">
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === "ios" ? "padding" : undefined} 
+          className="flex-1 bg-black/60 justify-end"
+        >
           <View className="bg-white rounded-t-3xl pt-6 px-6 pb-10 max-h-[90%]">
             <View className="flex-row justify-between items-center mb-6">
               <Text className="text-xl font-black text-slate-800 uppercase tracking-tight">Final Checkout</Text>
@@ -1202,9 +1218,8 @@ export default function POSScreen() {
                     <Text className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Payable Amount</Text>
                     <TextInput
                       value={payableAmount}
-                      onChangeText={(val) => { setIsPayableAmountEdited(true); setPayableAmount(val); }}
-                      keyboardType="numeric"
-                      className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 font-black text-sm"
+                      editable={false}
+                      className="bg-slate-200 border border-slate-300 rounded-xl px-4 py-3 text-slate-600 font-black text-sm"
                     />
                   </View>
                   <View className="flex-1">
@@ -1285,7 +1300,7 @@ export default function POSScreen() {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* ── UNIT PICKER MODAL ──────────────────────────────────────────────── */}

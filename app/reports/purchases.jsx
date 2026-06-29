@@ -312,6 +312,20 @@ export default function PurchaseReportScreen() {
           </View>
         )}
 
+        {isExpanded && data?.summary?.unit_breakdown && Object.keys(data.summary.unit_breakdown).length > 0 && (
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            {Object.entries(data.summary.unit_breakdown).map(([unit, count], i) => (
+              <SummaryCard
+                key={i}
+                label={`Total ${unit}`}
+                value={Number(count).toLocaleString()}
+                icon={<Ionicons name="cube-outline" size={16} color="#6366f1" />}
+                accent="bg-indigo-50/50"
+              />
+            ))}
+          </View>
+        )}
+
         <GlassCard className="p-3 mb-10">
           <View className="flex-row pb-2 mb-1.5 border-b border-slate-100">
             <Text className="text-slate-400 text-[9px] font-black uppercase tracking-wider flex-1">Supplier / Date</Text>

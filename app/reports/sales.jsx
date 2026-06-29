@@ -283,6 +283,20 @@ export default function SalesReportScreen() {
               icon={<Ionicons name="trending-down-outline" size={16} color="#64748b" />}
               accent="bg-slate-100/50"
             />
+            </View>
+        )}
+
+        {isExpanded && data?.summary?.unit_breakdown && Object.keys(data.summary.unit_breakdown).length > 0 && (
+          <View className="flex-row flex-wrap gap-2 mb-4">
+            {Object.entries(data.summary.unit_breakdown).map(([unit, count], i) => (
+              <SummaryCard
+                key={i}
+                label={`Total ${unit}`}
+                value={Number(count).toLocaleString()}
+                icon={<Ionicons name="cube-outline" size={16} color="#6366f1" />}
+                accent="bg-indigo-50/50"
+              />
+            ))}
           </View>
         )}
 
